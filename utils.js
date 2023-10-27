@@ -37,7 +37,46 @@ export async function find_prop(elem, regex){
 export async function safely_wait_idle(page, sec) {
     try {
         await page.waitForNetworkIdle({timeout: 1000*sec});
+        return true;
     } catch (e) {
         // ignored
     }
+    return false;
+}
+
+/**
+ * @param page {Page}
+ * @param selector {string}
+ * @param sec {number}
+ * @returns {Promise<boolean>}
+ */
+export async function safely_wait_selector(page, selector, sec) {
+    try {
+        await page.waitForSelector(selector, {timeout: 1000*sec, visible: true});
+        return true;
+    } catch (e) {
+        // ignored
+    }
+    return false;
+}
+
+/**
+ * @param page {Page}
+ * @param elem {ElementHandle}
+ * @returns {Promise<void>}
+ */
+export async function click_with_mouse(page, elem) {
+    /** @type {BoundingBox} */
+    let box = await elem.boundingBox();
+    if (!box)
+        await elem.scrollIntoView();
+    box = await elem.boundingBox();
+    if (!box)
+        throw new Error('unk elem');
+
+    let x_f = box.x + box.width/2;
+    let y_f = box.y + box.height/2;
+
+    await page.mouse.move(x_f, y_f, {steps: 10});
+    await page.mouse.click(x_f, y_f, {count: 2});
 }
