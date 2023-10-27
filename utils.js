@@ -56,8 +56,8 @@ export async function safely_wait_selector(page, selector, sec) {
         return true;
     } catch (e) {
         // ignored
+        return false;
     }
-    return false;
 }
 
 /**
