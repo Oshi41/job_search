@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from "os";
 import puppeteer from "puppeteer";
 import {join_mkdir, join_mkfile, read_json, sleep} from 'oshi_utils';
-import {find_prop, safely_wait_idle, user_typing, wait_rand} from "./utils.js";
+import {find_prop, get_puppeteer, safely_wait_idle, user_typing, wait_rand} from "./utils.js";
 
 const vacancies_json_path = join_mkfile(os.homedir(), 'job_search', 'vacancies.json');
 
@@ -82,6 +82,7 @@ async function read_content(page, selector, {use_recognition = false}={}) {
  */
 async function scan_page(page, max_page, meta, {on_vacancy_founded}) {
     let pagination_sel = '.artdeco-pagination__pages--number';
+    console.debug('waiting for paginator');
     await page.waitForSelector(pagination_sel);
     let buttons_count = await page.$eval(pagination_sel, x=>Array.from(x.childNodes.values())
         .filter(n=>n.id).map(n=>({id: n.id})).length);
@@ -92,6 +93,7 @@ async function scan_page(page, max_page, meta, {on_vacancy_founded}) {
         if (!btn)
             break;
         await btn.click();
+        console.debug('clicked', i, 'page button and wait for page loading');
         await safely_wait_idle(page, 5)
 
         let container = await page.$('.scaffold-layout__list-container');
@@ -112,13 +114,16 @@ async function scan_page(page, max_page, meta, {on_vacancy_founded}) {
                 };
             });
         });
+        console.debug('Founded', map.length, 'vacancies on', i, 'page');
 
         for (let {selector, job_id} of map)
         {
             let vacancy = await page.$(selector); // li
             await vacancy.scrollIntoView();
+            console.debug('Scrolled to vacancy');
             await wait_rand(576);
             await vacancy.click();
+            console.debug('Clicked on vacancy, waiting for page loading');
 
             await safely_wait_idle(page, 2);
 
@@ -126,8 +131,10 @@ async function scan_page(page, max_page, meta, {on_vacancy_founded}) {
             selector = '.jobs-description-content';
 
             let text = await read_content(page, selector);
+            console.debug('Read vacancy content');
             text = text.replace(/\n\n+/g, '\n\n');
             let easy_apply = await page.$(`button[data-job-id="${job_id}"]`);
+            console.debug('Checked for easy apply');
             if (vacancies_map.has(job_id))
             {
                 let stored = vacancies_map.get(job_id);
@@ -143,6 +150,7 @@ async function scan_page(page, max_page, meta, {on_vacancy_founded}) {
             };
             vacancies_map.set(job_id, v);
             function save_all() {
+                console.debug('Save all', vacancies_map.size, 'founded vacancies');
                 fs.writeFileSync(vacancies_json_path, JSON.stringify(
                     vacancies_map.values_arr(),
                     null,
@@ -166,18 +174,10 @@ async function scan_page(page, max_page, meta, {on_vacancy_founded}) {
 export default async function main(linkedin, opt) {
     console.debug('read settings: success');
 
-    let browser = await puppeteer.launch({
-        executablePath: "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-        headless: false,
-        userDataDir: join_mkdir(os.homedir(), 'job_search', 'browser_data'),
-        defaultViewport: {
-            width: 2000,
-            height: 1000,
-            hasTouch: false,
-            isMobile: false,
-        },
-    });
+    let browser = await get_puppeteer();
     const page = await browser.newPage();
+    let a = await page.$('' );
+
     const client = await page.target().createCDPSession();
     await page.goto('https://www.linkedin.com/uas/login',
         {waitUntil: 'load'});
@@ -189,7 +189,9 @@ export default async function main(linkedin, opt) {
         url.searchParams.append('keywords', search_txt);
         url.searchParams.append('location', '');
 
-        await page.goto(url.toString(), {waitUntil: 'networkidle2'});
+        console.debug('navigate to user search');
+        await page.goto(url.toString(), {waitUntil: 'load'});
+        console.debug('job scanning');
         await scan_page(page, 5, {search_txt}, opt);
     }
     return read_json(vacancies_json_path);

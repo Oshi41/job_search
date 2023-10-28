@@ -1,4 +1,6 @@
-import {sleep} from "oshi_utils";
+import {join_mkdir, sleep} from "oshi_utils";
+import puppeteer from "puppeteer";
+import os from "os";
 
 /**
  * @param elem {ElementHandle}
@@ -80,3 +82,22 @@ export async function click_with_mouse(page, elem) {
     await page.mouse.move(x_f, y_f, {steps: 10});
     await page.mouse.click(x_f, y_f, {count: 2});
 }
+
+let browser;
+export async function get_puppeteer(){
+    if (!browser)
+    {
+        browser = await puppeteer.launch({
+            executablePath: "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+            headless: false,
+            userDataDir: join_mkdir(os.homedir(), 'job_search', 'browser_data'),
+            defaultViewport: {
+                width: 2000,
+                height: 1000,
+                hasTouch: false,
+                isMobile: false,
+            },
+        });
+    }
+    return browser;
+};
