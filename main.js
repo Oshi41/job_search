@@ -1,12 +1,16 @@
 import {Command} from 'commander';
 import package_json from './package.json' assert {type: "json"}
-import {join_mkfile, question, qw, read_json, Settings} from "oshi_utils";
+import {join_mkdir, join_mkfile, question, qw, read_json, Settings, setup_log} from "oshi_utils";
 import perform_scape from './scrape.js';
 import * as ai from "./ai_integration.js";
 import path from "path";
 import fs from "fs";
 import os from "os";
 import {get_database, update_vacancy} from "./utils.js";
+
+setup_log({
+    log_dir: join_mkdir(os.homedir(), 'job_search', 'logs'),
+})
 
 const {name, description, version} = package_json;
 
@@ -43,44 +47,62 @@ program
         console.log('DONE');
     });
 
+async function scrape(args) {
+    let settings = new Settings(settings_path, args.encrypt);
+    let {linkedin} = (await settings.read()) || {};
+    if (qw`login pass searches`.some(x => !linkedin?.[x]))
+        return console.error('Use "config" before');
+    await perform_scape(linkedin);
+    console.log('DONE');
+}
+
 program
     .command('scrape')
     .description('Searching for best jobs suitable for you')
     .option('--encrypt=STR', 'Your encrypt password')
-    .action(async args => {
-        let settings = new Settings(settings_path, args.encrypt);
-        let {linkedin} = (await settings.read()) || {};
-        if (qw`login pass searches`.some(x => !linkedin?.[x]))
-            return console.error('Use "config" before');
-        await perform_scape(linkedin);
-        console.log('DONE');
-    });
+    .action(scrape);
+
+async function analyze(args) {
+    await ai.init();
+    let settings = new Settings(settings_path, args.encrypt);
+    let {linkedin} = (await settings.read()) || {};
+    if (qw`plain_text_resume`.some(x => !linkedin?.[x]))
+        return console.error('Use "config" before');
+    let resume_txt = fs.readFileSync(linkedin.plain_text_resume, 'utf-8');
+    let db = await get_database();
+    /**@type {Vacancy[]}*/
+    let vacancies = await db.findAsync({ai_resp: {$exists: false}});
+    for (let vacancy of vacancies.filter(x => !x.ai_resp)) {
+        let {text, job_id} = vacancy;
+        let prompt = 'Your role is HR. You need to read given resume and job vacancy and return me ' +
+            'percentage of how this job is suitable for both job seeker and recruiter. Your answer should be ' +
+            '0-100% only on first raw, next lines should contains procs/cons for such vacancy.';
+        let all_prompt = [prompt, text, resume_txt].join('\n\n');
+        let resp = await ai.ask(all_prompt);
+        let result = /\d+%/g.exec(resp)?.[0]?.replace('%', '')?.trim();
+        let percentage = +result || 0;
+        await update_vacancy(db, {job_id: +job_id, ai_resp: resp, percentage});
+    }
+}
 
 program.command('analyze')
     .description('Analyze jobs with AI')
     .option('--encrypt=STR', 'Your encrypt password')
+    .action(analyze);
+
+program.command('scape-and-analyze')
+    .description('Command will scrape jobs for you and arrange it with AI')
+    .option('--encrypt=STR', 'Your encrypt password')
     .action(async args => {
-        await ai.init();
-        let settings = new Settings(settings_path, args.encrypt);
-        let {linkedin} = (await settings.read()) || {};
-        if (qw`plain_text_resume`.some(x => !linkedin?.[x]))
-            return console.error('Use "config" before');
-        let resume_txt = fs.readFileSync(linkedin.plain_text_resume, 'utf-8');
-        let db = await get_database();
-        /**@type {Vacancy[]}*/
-        let vacancies = await db.findAsync({ai_resp: {$exists: false}});
-        for (let vacancy of vacancies.filter(x => !x.ai_resp)) {
-            let {text, job_id} = vacancy;
-            let prompt = 'Your role is HR. You need to read given resume and job vacancy and return me ' +
-                'percentage of how this job is suitable for both job seeker and recruiter. Your answer should be ' +
-                '0-100% only on first raw, next lines should contains procs/cons for such vacancy.';
-            let all_prompt = [prompt, text, resume_txt].join('\n\n');
-            let resp = await ai.ask(all_prompt);
-            let result = /\d+%/g.exec(resp)?.[0]?.replace('%', '')?.trim();
-            let percentage = +result || 0;
-            await update_vacancy(db, {job_id: +job_id, ai_resp: resp, percentage});
+        let fns = [scrape, analyze];
+        for (let fn of fns) {
+            try {
+                await fn(args);
+            } catch (e) {
+                console.debug('Some error during execution:', e);
+            }
         }
-    });
+    })
 
 
 program.parse();

@@ -117,7 +117,7 @@ async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} 
     }
 
     async function scrape_single_page(page_id) {
-        let btn = await page_id.$(pagination_sel + ` > [data-test-pagination-page-btn="${page_id}"]`);
+        let btn = await page.$(pagination_sel + ` > [data-test-pagination-page-btn="${page_id}"]`);
         if (!btn)
             return;
 
@@ -145,7 +145,7 @@ async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} 
                 };
             });
         });
-        map = map.find(x=>Number.isInteger(x.job_id));
+        map = map.filter(x=>Number.isInteger(x.job_id));
         console.debug('Founded', map.length, 'vacancies on', page_id, 'page');
 
         while (map.length)
@@ -165,7 +165,7 @@ async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} 
     while (i <= end)
     {
         try {
-            await scrape_single_page(i+1);
+            await scrape_single_page(i);
             i++;
         } catch (e) {
             console.warn('Error during pagination:', e);
