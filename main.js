@@ -6,7 +6,7 @@ import * as ai from "./ai_integration.js";
 import path from "path";
 import fs from "fs";
 import os from "os";
-import {vacancies_json_path} from "./utils.js";
+import {get_database, update_vacancy} from "./utils.js";
 
 const {name, description, version} = package_json;
 
@@ -52,34 +52,33 @@ program
         let {linkedin} = (await settings.read()) || {};
         if (qw`login pass searches`.some(x => !linkedin?.[x]))
             return console.error('Use "config" before');
-        let vacancies = await perform_scape(linkedin);
-        console.log('Founded', vacancies.length, 'vacancies total');
+        await perform_scape(linkedin);
+        console.log('DONE');
     });
 
 program.command('analyze')
     .description('Analyze jobs with AI')
     .option('--encrypt=STR', 'Your encrypt password')
-    .action(async args=>{
+    .action(async args => {
         await ai.init();
         let settings = new Settings(settings_path, args.encrypt);
         let {linkedin} = (await settings.read()) || {};
         if (qw`plain_text_resume`.some(x => !linkedin?.[x]))
             return console.error('Use "config" before');
         let resume_txt = fs.readFileSync(linkedin.plain_text_resume, 'utf-8');
-        /*** @type {Vacancy[]}*/
-        let vacancies = read_json(vacancies_json_path);
-        for (let vacancy of vacancies.filter(x => !x.ai_resp))
-        {
-            let {text} = vacancy;
+        let db = await get_database();
+        /**@type {Vacancy[]}*/
+        let vacancies = await db.findAsync({ai_resp: {$exists: false}});
+        for (let vacancy of vacancies.filter(x => !x.ai_resp)) {
+            let {text, job_id} = vacancy;
             let prompt = 'Your role is HR. You need to read given resume and job vacancy and return me ' +
                 'percentage of how this job is suitable for both job seeker and recruiter. Your answer should be ' +
                 '0-100% only on first raw, next lines should contains procs/cons for such vacancy.';
             let all_prompt = [prompt, text, resume_txt].join('\n\n');
             let resp = await ai.ask(all_prompt);
-            vacancy.ai_resp = resp;
-            let regex = /\s(\d+%)/g;
-            let result = regex.exec(resp)?.[0]?.replace('%', '')?.trim();
-            vacancy.percentage = +result || 0;
+            let result = /\d+%/g.exec(resp)?.[0]?.replace('%', '')?.trim();
+            let percentage = +result || 0;
+            await update_vacancy(db, {job_id: +job_id, ai_resp: resp, percentage});
         }
     });
 

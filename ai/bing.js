@@ -4,16 +4,16 @@ import os from "os";
 import {get_puppeteer, safely_wait_idle, safely_wait_selector, wait_rand} from "../utils.js";
 import {EventEmitter} from 'events';
 
-let browser, page, client, was_init;
+let browser, page, client, init_promise;
 
 const emitter = new EventEmitter();
 
 const textarea_js_selector_parent = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-action-bar-main").shadowRoot.querySelector("div > div.main-container > div > div.input-row > cib-text-input").shadowRoot.querySelector("#searchboxform")';
 const textarea_js_selector = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-action-bar-main").shadowRoot.querySelector("div > div.main-container > div > div.input-row > cib-text-input").shadowRoot.querySelector("#searchbox")';
-const sumbit_btn_js_selector = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-action-bar-main").shadowRoot.querySelector("div > div.main-container > div > div.bottom-controls > div.bottom-right-controls > div.control.submit > button")';
+const stop_gen_button = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-action-bar-main").shadowRoot.querySelector("div > cib-typing-indicator").shadowRoot.querySelector("#stop-responding-button")';
 
 const queue = [];
-let is_processing;
+let is_processing, prompt_count = 0;
 
 async function process_queue() {
     if (is_processing)
@@ -23,8 +23,17 @@ async function process_queue() {
         if (!queue.length)
             throw new Error('Empty queue');
 
+        if (prompt_count > 25)
+        {
+            await page.reload({waitUntil: 'load'});
+            prompt_count = 0;
+        }
+
         console.debug('processing AI queue');
         let {text, sec_timeout, cb} = queue[0];
+
+        let stop_btn = await page.evaluateHandle(stop_gen_button);
+        await stop_btn?.click?.(); // stop prev answers
 
         let form = await page.evaluateHandle(textarea_js_selector_parent);
         if (!form)
@@ -36,22 +45,29 @@ async function process_queue() {
         await wait_rand(500);
 
         await form.$eval('#searchbox', (x, txt)=>{
+            x.setAttribute('maxlength', '100000');
             x.value = txt;
         }, text);
+
         await wait_rand(137);
         await textarea.focus();
         await textarea.type(' \n', {delay: 120});
 
-        console.debug('Entered prompt, waiting for result');
+        prompt_count++;
+        console.debug(`[${prompt_count}] Entered prompt, waiting for result`);
+
 
         let resp = await new Promise((resolve, reject) => {
-            sleep(1000 * sec_timeout).then(() => {
-                console.debug('AI resp timeout');
-                resolve('');
-            });
+            if (sec_timeout > 0)
+            {
+                sleep(1000 * sec_timeout).then(() => {
+                    console.debug('AI resp timeout');
+                    resolve('');
+                });
+            }
             emitter.once('ai_resp', args => {
                 console.debug('AI resp event');
-                let bot_messages = args.item.messages.filter(x => x.author == 'bot').map(x => x.text);
+                let bot_messages = args.item.messages.filter(x => x.author == 'bot' && !x.messageType).map(x => x.text);
                 resolve(bot_messages.join('\n'));
             });
         });
@@ -72,70 +88,62 @@ async function process_queue() {
 }
 
 export async function init() {
-    if (was_init === false)
-        return; // already is in init function
+    init_promise = init_promise || new Promise(async resolve => {
+        browser = await get_puppeteer();
+        page = await browser.newPage();
+        client = await page.target().createCDPSession();
+        await client.send('Network.enable');
 
-    if (was_init === true)
-        return; // already finished
+        client.on('Network.webSocketFrameReceived', event => {
+            const {requestId, response, timestamp} = event;
+            try {
+                let first_json = response.payloadData.split('')[0]
+                let resp = JSON.parse(first_json);
+                if (resp?.type == 2 && `conversationId requestId`.split(' ').every(x => !!resp.item?.[x]))
+                    emitter.emit('ai_resp', resp);
+            } catch (e) {
+                // ignored
+            }
+        });
 
-    was_init = false;
+        // disable search filter
+        await page.goto('edge://settings/searchFilters', {waitUntil: 'load'});
+        let toggle = await page.$('input[type="checkbox"][checked]');
+        await toggle?.click();
 
-    browser = await get_puppeteer();
-    page = await browser.newPage();
-    client = await page.target().createCDPSession();
-    await client.send('Network.enable');
+        // disable trace defence
+        await page.goto('edge://settings/privacy', {waitUntil: 'load'});
+        toggle = await page.$('input[type="checkbox"][tabindex="0"][checked]');
+        await toggle?.click();
 
-    client.on('Network.webSocketFrameReceived', event => {
-        const {requestId, response, timestamp} = event;
-        try {
-            // todo debug
-            let resp = JSON.parse(response.payloadData.split('\o')?.[0]);
-            if (resp?.type == 2 && `conversationId requestId`.split(' ').every(x => !!resp.item?.[x]))
-                emitter.emit('ai_resp', resp);
-        } catch (e) {
-            // ignored
+        while (true) {
+            // checking if we allowed to use chat
+            await page.goto('https://www.bing.com/', {waitUntil: 'networkidle2'});
+            // navigate on 'chat'
+            let link = await page.$('a.customIcon');
+            await link?.click();
+
+            // annoying splash screen about safe search settings
+            if (!await safely_wait_selector(page, '#codexPrimaryButtonCloseModal', 2))
+                break;
+
+            let btn = await page.$('#codexPrimaryButtonCloseModal');
+            await btn.click();
         }
+
+        await safely_wait_idle(page, 2);
+
+        let textarea_form = await page.evaluateHandle(textarea_js_selector_parent);
+        if (!textarea_form)
+            throw new Error('Cannot find form');
+
+
+        resolve(true);
     });
-
-    // disable search filter
-    await page.goto('edge://settings/searchFilters', {waitUntil: 'load'});
-    let toggle = await page.$('input[type="checkbox"][checked]');
-    await toggle?.click();
-
-    // disable trace defence
-    await page.goto('edge://settings/privacy', {waitUntil: 'load'});
-    toggle = await page.$('input[type="checkbox"][tabindex="0"][checked]');
-    await toggle?.click();
-
-    while (true) {
-        // checking if we allowed to use chat
-        await page.goto('https://www.bing.com/', {waitUntil: 'networkidle2'});
-        // navigate on 'chat'
-        let link = await page.$('a.customIcon');
-        await link?.click();
-
-        // annoying splash screen about safe search settings
-        if (!await safely_wait_selector(page, '#codexPrimaryButtonCloseModal', 2))
-            break;
-
-        let btn = await page.$('#codexPrimaryButtonCloseModal');
-        await btn.click();
-    }
-
-    await safely_wait_idle(page, 2);
-
-    let textarea_form = await page.evaluateHandle(textarea_js_selector_parent);
-    if (!textarea_form)
-        throw new Error('Cannot find form');
-
-    await textarea_form.$eval('#searchbox', x => {
-        x.setAttribute('maxlength', '10000');
-    });
-
-    was_init = true;
+    return await init_promise;
 }
 
-export async function ask(text, on_resp_fn, sec_timeout = 30) {
+export async function ask(text, on_resp_fn, sec_timeout = -1) {
     await init();
     let promise = new Promise((resolve, reject) => {
         queue.push({
@@ -146,7 +154,4 @@ export async function ask(text, on_resp_fn, sec_timeout = 30) {
     });
     process_queue();
     return await promise;
-
 }
-
-ask('Say hi\nTo me\nLalalalalala').then(x=>console.log('HEREEE:', x));

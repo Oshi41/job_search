@@ -11,10 +11,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "bing-chat": "^0.2.3",
     "commander": "^11.1.0",
     "oshi_utils": "1.0.12",
     "puppeteer": "^21.3.6",
-    "bard-ai": "^2.0.3"
+    "@seald-io/nedb": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/nedb": "^1.8.15"
   }
 }
