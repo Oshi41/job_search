@@ -1,4 +1,5 @@
 import {get_puppeteer, safely_wait_idle, user_typing, wait_rand, get_database, update_vacancy} from "./utils.js";
+import {sleep} from "oshi_utils";
 
 /**
  * @typedef {object} Vacancy
@@ -74,7 +75,7 @@ async function read_content(page, selector, {use_recognition = false} = {}) {
  * @param page {Page}
  * @returns {Promise<string>}
  */
-async function scan_page(page, max_page, meta, {on_vacancy_founded} = {}) {
+async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} = {}) {
     let pagination_sel = '.artdeco-pagination__pages--number';
     console.debug('waiting for paginator');
     await page.waitForSelector(pagination_sel);
@@ -82,13 +83,47 @@ async function scan_page(page, max_page, meta, {on_vacancy_founded} = {}) {
         .filter(n => n.id).map(n => ({id: n.id})).length);
     let db = await get_database();
 
-    for (let i = 0, end = Math.min(buttons_count, max_page); i < end; i++) {
-        let btn = await page.$(pagination_sel + ` > [data-test-pagination-page-btn="${i + 1}"]`);
+    async function scape_single_vacancy({selector, job_id}){
+        let vacancy = await page.$(selector); // li
+        await vacancy.scrollIntoView();
+        console.debug('Scrolled to vacancy');
+        await wait_rand(576);
+        await vacancy.click();
+        console.debug('Clicked on vacancy, waiting for page loading');
+
+        await safely_wait_idle(page, 2);
+
+        let link = 'https://www.linkedin.com/jobs/view/' + job_id;
+        selector = '.jobs-description-content';
+
+        let text = await read_content(page, selector);
+        console.debug('Read vacancy content');
+        text = text.replace(/\n\n+/g, '\n\n');
+        let easy_apply = await page.$(`button[data-job-id="${job_id}"]`);
+        console.debug('Checked for easy apply');
+
+        if (await db.countAsync({job_id, text}) > 0) {
+            console.debug('Skipping job', job_id, 'as it already loaded');
+            return;
+        }
+
+        await update_vacancy(db, {
+            job_id: +job_id,
+            link,
+            text,
+            easy_apply: !!easy_apply,
+            ...(meta || {}),
+        });
+    }
+
+    async function scrape_single_page(page_id) {
+        let btn = await page_id.$(pagination_sel + ` > [data-test-pagination-page-btn="${page_id}"]`);
         if (!btn)
-            break;
+            return;
+
         await btn.click();
-        console.debug('clicked', i, 'page button and wait for page loading');
-        await safely_wait_idle(page, 5)
+        console.debug('clicked', page_id, 'pagination button and wait for page loading');
+        await safely_wait_idle(page, 5);
 
         let container = await page.$('.scaffold-layout__list-container');
         /**
@@ -110,38 +145,31 @@ async function scan_page(page, max_page, meta, {on_vacancy_founded} = {}) {
                 };
             });
         });
-        console.debug('Founded', map.length, 'vacancies on', i, 'page');
+        map = map.find(x=>Number.isInteger(x.job_id));
+        console.debug('Founded', map.length, 'vacancies on', page_id, 'page');
 
-        for (let {selector, job_id} of map.filter(x => Number.isInteger(x.job_id))) {
-            let vacancy = await page.$(selector); // li
-            await vacancy.scrollIntoView();
-            console.debug('Scrolled to vacancy');
-            await wait_rand(576);
-            await vacancy.click();
-            console.debug('Clicked on vacancy, waiting for page loading');
+        while (map.length)
+        {
+            try {
+                await scape_single_vacancy(map[0]);
+                map.shift();
+            } catch (e) {
+                console.debug('Error during vacancy scrape:', e);
+                await wait_rand(578);
+            }
+        }
+    }
 
-            await safely_wait_idle(page, 2);
+    let i = 1, end = Math.min(buttons_count, max_page);
 
-            let link = 'https://www.linkedin.com/jobs/view/' + job_id;
-            selector = '.jobs-description-content';
-
-            let text = await read_content(page, selector);
-            console.debug('Read vacancy content');
-            text = text.replace(/\n\n+/g, '\n\n');
-            let easy_apply = await page.$(`button[data-job-id="${job_id}"]`);
-            console.debug('Checked for easy apply');
-
-            if (await db.countAsync({job_id, text}) > 0)
-                continue;
-
-            await update_vacancy(db, {
-                job_id: +job_id,
-                link,
-                text,
-                easy_apply: !!easy_apply,
-                ...(meta || {}),
-            });
-            console.debug('Updated job', job_id);
+    while (i <= end)
+    {
+        try {
+            await scrape_single_page(i+1);
+            i++;
+        } catch (e) {
+            console.warn('Error during pagination:', e);
+            await wait_rand(568);
         }
     }
 }
@@ -196,7 +224,7 @@ export default async function main(linkedin, opt) {
         console.debug('navigate to user search');
         await page.goto(url.toString(), {waitUntil: 'load'});
         console.debug('job scanning');
-        await scan_page(page, 5, {search_txt}, opt);
+        await scrape_search_results(page, 5, {search_txt}, opt);
     }
     return true;
 }

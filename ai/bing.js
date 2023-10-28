@@ -25,6 +25,7 @@ async function process_queue() {
 
         if (prompt_count > 25)
         {
+            console.debug('refresh page due to prompt request overload');
             await page.reload({waitUntil: 'load'});
             prompt_count = 0;
         }
@@ -82,6 +83,7 @@ async function process_queue() {
             queue.shift();
         } catch (e) {
             console.warn('Error during queue processing:', e);
+            await wait_rand(435);
         }
     }
     is_processing = false;
