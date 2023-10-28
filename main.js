@@ -1,11 +1,12 @@
 import {Command} from 'commander';
 import package_json from './package.json' assert {type: "json"}
-import {join_mkfile, question, qw, Settings} from "oshi_utils";
+import {join_mkfile, question, qw, read_json, Settings} from "oshi_utils";
 import perform_scape from './scrape.js';
 import * as ai from "./ai_integration.js";
 import path from "path";
 import fs from "fs";
 import os from "os";
+import {vacancies_json_path} from "./utils.js";
 
 const {name, description, version} = package_json;
 
@@ -47,34 +48,39 @@ program
     .description('Searching for best jobs suitable for you')
     .option('--encrypt=STR', 'Your encrypt password')
     .action(async args => {
+        let settings = new Settings(settings_path, args.encrypt);
+        let {linkedin} = (await settings.read()) || {};
+        if (qw`login pass searches`.some(x => !linkedin?.[x]))
+            return console.error('Use "config" before');
+        let vacancies = await perform_scape(linkedin);
+        console.log('Founded', vacancies.length, 'vacancies total');
+    });
+
+program.command('analyze')
+    .description('Analyze jobs with AI')
+    .option('--encrypt=STR', 'Your encrypt password')
+    .action(async args=>{
         await ai.init();
         let settings = new Settings(settings_path, args.encrypt);
         let {linkedin} = (await settings.read()) || {};
-        if (qw`login pass searches plain_text_resume`.some(x => !linkedin?.[x]))
+        if (qw`plain_text_resume`.some(x => !linkedin?.[x]))
             return console.error('Use "config" before');
         let resume_txt = fs.readFileSync(linkedin.plain_text_resume, 'utf-8');
-
-        /**
-         * @param vacancy {Vacancy}
-         * @param save_changed_cb {(Vacancy)=>void}
-         * @returns {Promise<void>}
-         */
-        async function on_vacancy_founded(vacancy, save_changed_cb) {
-            let prompts = ['Your role is HR. You need to read given resume and job vacancy and return me ' +
-            'percentage of how this job is suitable for both job seeker and recruiter. Your answer should be 0-100% ' +
-            'only on first raw, next lines should contains procs/cons for such vacancy.',
-                resume_txt,
-                vacancy.text,
-            ];
-            vacancy.ai_resp = await ai.ask(prompts.join('\n\n'));
+        /*** @type {Vacancy[]}*/
+        let vacancies = read_json(vacancies_json_path);
+        for (let vacancy of vacancies.filter(x => !x.ai_resp))
+        {
+            let {text} = vacancy;
+            let prompt = 'Your role is HR. You need to read given resume and job vacancy and return me ' +
+                'percentage of how this job is suitable for both job seeker and recruiter. Your answer should be ' +
+                '0-100% only on first raw, next lines should contains procs/cons for such vacancy.';
+            let all_prompt = [prompt, text, resume_txt].join('\n\n');
+            let resp = await ai.ask(all_prompt);
+            vacancy.ai_resp = resp;
             let regex = /\s(\d+%)/g;
-            let percentage = regex.exec(vacancy.ai_resp)?.[0]?.replace('%', '')?.trim();
-            vacancy.percentage = +percentage || 0;
-            save_changed_cb(vacancy);
+            let result = regex.exec(resp)?.[0]?.replace('%', '')?.trim();
+            vacancy.percentage = +result || 0;
         }
-
-        let vacancies = await perform_scape(linkedin, {on_vacancy_founded});
-        console.log('Founded', vacancies.length, 'vacancies total');
     });
 
 

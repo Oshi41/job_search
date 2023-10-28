@@ -1,4 +1,4 @@
-import {join_mkdir, sleep} from "oshi_utils";
+import {join_mkdir, join_mkfile, sleep} from "oshi_utils";
 import puppeteer from "puppeteer";
 import os from "os";
 
@@ -101,3 +101,5 @@ export async function get_puppeteer(){
     }
     return browser;
 };
+
+export const vacancies_json_path = join_mkfile(os.homedir(), 'job_search', 'vacancies.json');

@@ -1,10 +1,8 @@
 import fs from 'fs';
 import os from "os";
 import puppeteer from "puppeteer";
-import {join_mkdir, join_mkfile, read_json, sleep} from 'oshi_utils';
-import {find_prop, get_puppeteer, safely_wait_idle, user_typing, wait_rand} from "./utils.js";
-
-const vacancies_json_path = join_mkfile(os.homedir(), 'job_search', 'vacancies.json');
+import {read_json} from 'oshi_utils';
+import {get_puppeteer, safely_wait_idle, user_typing, wait_rand, vacancies_json_path} from "./utils.js";
 
 /**
  * @typedef {object} Vacancy
@@ -12,6 +10,8 @@ const vacancies_json_path = join_mkfile(os.homedir(), 'job_search', 'vacancies.j
  * @property {string} text - job description
  * @property {boolean} easy_apply - can easy apply from LinkedIn
  * @property {string} search_txt - Search text how we found this job
+ * @property {number} percentage - How much this job is suitable for you
+ * @property {string} ai_resp - Raw AI response
  */
 
 /**
@@ -80,7 +80,7 @@ async function read_content(page, selector, {use_recognition = false}={}) {
  * @param page {Page}
  * @returns {Promise<string>}
  */
-async function scan_page(page, max_page, meta, {on_vacancy_founded}) {
+async function scan_page(page, max_page, meta, {on_vacancy_founded}={}) {
     let pagination_sel = '.artdeco-pagination__pages--number';
     console.debug('waiting for paginator');
     await page.waitForSelector(pagination_sel);
