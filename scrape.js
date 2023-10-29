@@ -1,18 +1,6 @@
 import {get_puppeteer, safely_wait_idle, user_typing, wait_rand, get_database, update_vacancy} from "./utils.js";
-import {sleep} from "oshi_utils";
 
-/**
- * @typedef {object} Vacancy
- * @property {URL} link - Job link
- * @property {Date} insert_time - DB insertion time
- * @property {Date} vacancy_time - When vacancy was created
- * @property {number} job_id - Job link
- * @property {string} text - job description
- * @property {boolean} easy_apply - can easy apply from LinkedIn
- * @property {string} search_txt - Search text how we found this job
- * @property {number} percentage - How much this job is suitable for you
- * @property {string} ai_resp - Raw AI response
- */
+
 
 /**
  *
@@ -173,7 +161,6 @@ async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} 
         }
     }
 }
-
 
 /**
  * @param linkedin {{login: string, pass: string, searches: string[]}}

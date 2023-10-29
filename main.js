@@ -23,29 +23,26 @@ program
     .description(description)
     .version(version);
 
+async function config(args) {
+    let store_pass = args.encrypt ? await question('Enter encrypt password', 'password') : null;
+    let settings = new Settings(settings_path, store_pass);
+    let obj = (await settings.read()) || {};
+
+    obj.login = await question('Enter your LinkedIn email login', 'mail', {def: obj.login});
+    obj.pass = await question('Enter your LinkedIn email login', 'password', {def: obj.pass});
+    obj.searches = await question('Enter desired job searches splitted by new line. Double Enter to finish',
+        'plain_list', {def: obj.searches});
+    obj.location = await question('Enter desired job location', 'string',
+        {def: obj.location || 'worldwide'});
+
+    settings.save(obj);
+    console.log('DONE');
+}
 program
     .command('config')
     .description('Reconfigurate your job_search app')
     .option('--encrypt', 'Encrypt your data with password?')
-    .action(async args => {
-        let store_pass = args.encrypt ? await question('Enter encrypt password', 'password') : null;
-        let settings = new Settings(settings_path, store_pass);
-        let obj = (await settings.read()) || {linkedin: {}};
-        obj.linkedin.login = await question('Enter your LinkedIn email login', 'mail',
-            {def: obj.linkedin.login});
-        obj.linkedin.pass = await question('Enter your LinkedIn pass', 'password',
-            {def: obj.linkedin.pass});
-        obj.linkedin.searches = await question('Enter desired job searches splitted by new line. Double Enter to finish',
-            'plain_list', {def: obj.linkedin.searches});
-
-        console.log('You need to select your plain text resume. If you have PDF resume format, visit https://pdf2md.morethan.io/' +
-            'where you can convert PDF->plain text. Save plain text to file and select it');
-        obj.linkedin.plain_text_resume = await question('Select plain text resume file', 'existing_filepath',
-            {def: obj.linkedin.plain_text_resume});
-
-        settings.save(obj);
-        console.log('DONE');
-    });
+    .action(config);
 
 async function scrape(args) {
     let settings = new Settings(settings_path, args.encrypt);

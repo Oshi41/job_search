@@ -1,0 +1,118 @@
+%% start of file 'template.tex'.
+%% Copyright 2006-2013 Xavier Danaux (xdanaux@gmail.com).
+%
+% This work may be distributed and/or modified under the
+% conditions of the LaTeX Project Public License version 1.3c,
+% available at http://www.latex-project.org/lppl/.
+
+
+\documentclass[a4paper]{moderncv}        % possible options include font size ('10pt', '11pt' and '12pt'), paper size ('a4paper', 'letterpaper', 'a5paper', 'legalpaper', 'executivepaper' and 'landscape') and font family ('sans' and 'roman')
+\usepackage{textcomp}
+% moderncv themes
+\moderncvstyle{classic}                             % style options are 'casual' (default), 'classic', 'oldstyle' and 'banking'
+\moderncvcolor{blue}                               % color options 'blue' (default), 'orange', 'green', 'red', 'purple', 'grey' and 'black'
+%\renewcommand{\familydefault}{\sfdefault}         % to set the default font; use '\sfdefault' for the default sans serif font, '\rmdefault' for the default roman one, or any tex font name
+%\nopagenumbers{}                                  % uncomment to suppress automatic page numbering for CVs longer than one page
+
+% character encoding
+\usepackage[utf8]{inputenc}                       % if you are not using xelatex ou lualatex, replace by the encoding you are using
+%\usepackage{CJKutf8}                              % if you need to use CJK to typeset your resume in Chinese, Japanese or Korean
+
+% adjust the page margins
+\usepackage[scale=0.85]{geometry}
+%\setlength{\hintscolumnwidth}{3cm}                % if you want to change the width of the column with the dates
+%\setlength{\makecvheadnamewidth}{10cm}           % for the 'classic' style, if you want to force the width allocated to your name and avoid line breaks. be careful though, the length is normally calculated to avoid any overlap with your personal info; use this at your own typographical risks...
+    % Profile
+\name{Arkady Sheglov}{}
+\address{Thailand, Pattaya}
+\phone[mobile]{+66 6 4615 4706}
+\email{a.sheglov.work@gmail.com}
+\homepage{linkedin.com/in/oshi41}
+\extrainfo{\httplink{github.com/oshi41}}
+	\begin{document}
+\makecvtitle
+
+% insert line here
+
+\section{Education}
+\cventry
+{Sep 2014 | July 2017 (3 years)}
+{Computer software technology}
+{Moscow College of management and new technologies}
+{}
+{\textit{Moscow, Russia}}
+{\begin{itemize}%
+	 \item C\# WinForms/console app development
+	 \item Fundamentals of algorithmization and programming
+	 \item MySQL Database management
+\end{itemize}}
+\section{Work experience}
+\cventry
+{Dec 2016 -- March 2022 (5 y 4 mon)}
+{Intern-\textgreater{}Junior-\textgreater{}Middle-\textgreater{}Senior Frontend Engineer}
+{Secutity Code}
+{Russia, Moscow}
+{}
+{\begin{itemize}%
+	\item Desktop GUI development using C\#/WPF
+	\item SPA development with Typescript/React/Redux
+	\item Involved in DevOps tasks with MsBuild, Elasticsearch deployment
+	\item Unit tests
+	\end{itemize}}
+\cventry
+{Sep 2022 -- October 2022 (1 y 1 mon)}
+{Fullstack JS Engineer}
+{Bright Data}
+{Israel, Tel Aviv (remotely)}
+{}
+{\begin{itemize}%
+	\item Proxy network support using NodeJS/Express
+	\item Supporing data collection platform (frontend + browser automation) with NodeJS/React/Puppeteer/MongoDB
+	\item OpenAI integration, productivity enhancing tools
+	\item Unit/integration testing with sinon
+	\end{itemize}}
+\section{Skills}
+\cvitem{Top}{JavaScript/Typescript, NodeJS, React, C\#/WPF, Web scraping/browser automation}
+\cvitem{Middle}{Java, Git, CVS, TFS, MongoDB, SQL}
+\cvitem{Barely touch}{Docker, ELK, Erlang, .NET[.Core], ASP.NET}
+\section{Project}
+\cventry
+{}
+{Oct 2022 - now, LinkedIn job searcher}
+{}
+{\textit{NodeJS, Puppeteer}}
+{}
+{Some kind of LinkedIn job find automation. Uses pupeteer for
+browser automation and AI to find suitable vacancy
+\newline
+\httplink{github.com/Oshi41/job\_search}}
+\vspace{1mm}
+\cventry
+{}
+{Sep 2021 - Oct 2021 (1 mon), Minecraft project creation}
+{}
+{\textit{NodeJS, React, Express.js}}
+{}
+{
+	* Frontend with registration available in launcher. Includes
+	small new feed and admin feature (user managing mostly).
+	\httplink{github.com/Oshi41/titan-frontend}
+	\newline
+	* Backend ran on dedicated server, stores pass hashes
+	and provides Minecraft client authorization.
+	\httplink{github.com/Oshi41/titan-backend}
+}
+\vspace{1mm}
+\cventry
+{}
+{Aug 2019 - Jun 2020 (10 mon) Divine RPG porting}
+{}
+{\textit{Java, Minecraft Forge}}
+{}
+{Porting mod 1.7.10 -\textgreater{} 1.12.2 Minecraft version
+\newline
+\httplink{github.com/DivineRPG/DivineRPG}}
+
+
+\ 
+\end{document}

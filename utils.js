@@ -145,3 +145,24 @@ export async function update_vacancy(db, vacancy) {
     if (count > 1)
         throw new Error('Wrong query');
 }
+
+/**
+ * @typedef {object} Vacancy
+ * @property {URL} link - Job link
+ * @property {Date} insert_time - DB insertion time
+ * @property {Date} vacancy_time - When vacancy was created
+ * @property {number} job_id - Job link
+ * @property {string} text - job description
+ * @property {boolean} easy_apply - can easy apply from LinkedIn
+ * @property {string} search_txt - Search text how we found this job
+ * @property {number} percentage - How much this job is suitable for you
+ * @property {string} ai_resp - Raw AI response
+ */
+
+/**
+ * @typedef {object} JobSearchSettings
+ * @property {string} login - LinkedIn email login
+ * @property {string} pass - LinkedIn account password
+ * @property {string[]} searches - List of LinkedIn job searches
+ * @property {string} location - Desired LinkedIn job location
+ */
