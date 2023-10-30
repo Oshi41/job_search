@@ -86,6 +86,7 @@ export async function click_with_mouse(page, elem) {
 
 let browser_promise;
 
+/** @returns {Promise<Browser>}*/
 export async function get_puppeteer() {
     if (!browser_promise) {
         browser_promise = new Promise(async resolve => {
@@ -105,36 +106,51 @@ export async function get_puppeteer() {
     return await browser_promise;
 };
 
-let db_promise;
+let vacancy_db_p, resume_db_p;
 
-export async function get_database() {
-    db_promise = db_promise || new Promise(async resolve => {
+export async function get_vacancy_db() {
+    vacancy_db_p = vacancy_db_p || new Promise(async resolve => {
         /*** @type {Nedb<Vacancy>}*/
         let db = new nedb({
             filename: join_mkfile(os.homedir(), 'job_search', 'vacancies.jsonl'),
         });
-        console.log('INIT DB')
+        console.debug('vacancy db init');
         await db.ensureIndexAsync({fieldName: 'job_id', unique: true});
         await db.loadDatabaseAsync();
-        console.log('loaded database');
+        console.log('loaded vacancy database');
         resolve(db);
     });
 
-    return await db_promise;
+    return await vacancy_db_p;
 }
 
 /**
- *
- * @param db {Nedb}
- * @param vacancy {Vacancy}
+ * @param page {Page}
+ * @param keys {KeyInput}
  * @returns {Promise<void>}
  */
-export async function update_vacancy(db, vacancy) {
-    let q = {_id: +vacancy.job_id};
-    let upd = {_id: +vacancy.job_id, ...vacancy, };
+export async function press_keys(page, ...keys){
+    for (let key of keys) {
+        await page.keyboard.down(key);
+        await wait_rand(100);
+    }
+    for (let key of keys.reverse()) {
+        await page.keyboard.up(key);
+        await wait_rand(100);
+    }
+}
+
+/**
+ * @param db {Nedb}
+ * @param q {any}
+ * @param upd {any}
+ * @returns {Promise<void>}
+ */
+export async function update_one(db, q, upd){
     let count = await db.countAsync(q);
+    let doc = Object.assign({...upd}, q);
     if (count == 0)
-        return await db.insertAsync({...upd, insert_time: new Date()});
+        return await db.insertAsync(doc);
     if (count == 1)
     {
         let source = await db.findOneAsync(q);
@@ -142,8 +158,7 @@ export async function update_vacancy(db, vacancy) {
         Object.assign(source, upd);
         return await db.insertAsync(source);
     }
-    if (count > 1)
-        throw new Error('Wrong query');
+    throw new Error('Wrong query');
 }
 
 /**
@@ -165,4 +180,10 @@ export async function update_vacancy(db, vacancy) {
  * @property {string} pass - LinkedIn account password
  * @property {string[]} searches - List of LinkedIn job searches
  * @property {string} location - Desired LinkedIn job location
+ */
+
+/**
+ * @typedef {object} ResumeCache
+ * @property {string} fullpath - fullpath to resume file
+ * @property {string} hash - md5 hash of text it was made of
  */

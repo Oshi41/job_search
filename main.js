@@ -6,7 +6,7 @@ import * as ai from "./ai_integration.js";
 import path from "path";
 import fs from "fs";
 import os from "os";
-import {get_database, update_vacancy} from "./utils.js";
+import {get_vacancy_db, update_one} from "./utils.js";
 
 setup_log({
     log_dir: join_mkdir(os.homedir(), 'job_search', 'logs'),
@@ -66,7 +66,7 @@ async function analyze(args) {
     if (qw`plain_text_resume`.some(x => !linkedin?.[x]))
         return console.error('Use "config" before');
     let resume_txt = fs.readFileSync(linkedin.plain_text_resume, 'utf-8');
-    let db = await get_database();
+    let db = await get_vacancy_db();
     /**@type {Vacancy[]}*/
     let vacancies = await db.findAsync({ai_resp: {$exists: false}});
     for (let vacancy of vacancies.filter(x => !x.ai_resp)) {
@@ -78,7 +78,7 @@ async function analyze(args) {
         let resp = await ai.ask(all_prompt);
         let result = /\d+%/g.exec(resp)?.[0]?.replace('%', '')?.trim();
         let percentage = +result || 0;
-        await update_vacancy(db, {job_id: +job_id, ai_resp: resp, percentage});
+        await update_one(db, {job_id: +job_id}, {ai_resp: resp, percentage});
     }
 }
 

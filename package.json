@@ -12,10 +12,11 @@
   "license": "ISC",
   "dependencies": {
     "commander": "^11.1.0",
-    "oshi_utils": "1.0.13",
+    "oshi_utils": "1.0.16",
     "puppeteer": "^21.3.6",
     "@seald-io/nedb": "^4.0.2",
-    "node-pdflatex": "^0.3.0"
+    "node-pdflatex": "^0.3.0",
+    "pdf-text-extract": "^1.5.0"
   },
   "devDependencies": {
     "@types/nedb": "^1.8.15"

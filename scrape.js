@@ -1,4 +1,11 @@
-import {get_puppeteer, safely_wait_idle, user_typing, wait_rand, get_database, update_vacancy} from "./utils.js";
+import {
+    get_puppeteer,
+    safely_wait_idle,
+    user_typing,
+    wait_rand,
+    get_vacancy_db,
+    update_one
+} from "./utils.js";
 
 
 
@@ -69,7 +76,7 @@ async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} 
     await page.waitForSelector(pagination_sel);
     let buttons_count = await page.$eval(pagination_sel, x => Array.from(x.childNodes.values())
         .filter(n => n.id).map(n => ({id: n.id})).length);
-    let db = await get_database();
+    let db = await get_vacancy_db();
 
     async function scape_single_vacancy({selector, job_id}){
         let vacancy = await page.$(selector); // li
@@ -95,8 +102,7 @@ async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} 
             return;
         }
 
-        await update_vacancy(db, {
-            job_id: +job_id,
+        await update_one(db, {job_id: +job_id} ,{
             link,
             text,
             easy_apply: !!easy_apply,
@@ -171,7 +177,7 @@ export default async function main(linkedin, opt) {
     const page = await browser.newPage();
     /** @type {CDPSession} */
     const client = await page.target().createCDPSession();
-    let db = await get_database();
+    let db = await get_vacancy_db();
 
     page.on('response', async resp => {
         let url = resp?.url?.();
@@ -185,8 +191,7 @@ export default async function main(linkedin, opt) {
             let job_id = +new URL(url).pathname.split('/').pop();
 
             if (Number.isInteger(job_id)) {
-                await update_vacancy(db, {
-                    job_id: +job_id,
+                await update_one(db, {job_id: +job_id}, {
                     link: 'https://www.linkedin.com/jobs/view/' + job_id,
                     employ_status,
                     vacancy_time,
