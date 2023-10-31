@@ -7,6 +7,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import {get_vacancy_db, update_one} from "./utils.js";
+import {build_resume} from './resume_bulider.js';
 
 setup_log({
     log_dir: join_mkdir(os.homedir(), 'job_search', 'logs'),
@@ -26,6 +27,7 @@ program
 async function config(args) {
     let store_pass = args.encrypt ? await question('Enter encrypt password', 'password') : null;
     let settings = new Settings(settings_path, store_pass);
+    /** @type {JobSearchSettings}*/
     let obj = (await settings.read()) || {};
 
     obj.login = await question('Enter your LinkedIn email login', 'mail', {def: obj.login});
@@ -34,6 +36,9 @@ async function config(args) {
         'plain_list', {def: obj.searches});
     obj.location = await question('Enter desired job location', 'string',
         {def: obj.location || 'worldwide'});
+    obj.prompt = await question('Enter additional prompt for helping AI range vacancies. Use main idea - to lower ' +
+        'percentage if something doesn\'t suit you.\nExample:\nPrefer on site vacancies. Give preference to vacancies ' +
+        'with a specified salary.', 'string', {def: obj.prompt});
 
     settings.save(obj);
     console.log('DONE');
@@ -46,10 +51,10 @@ program
 
 async function scrape(args) {
     let settings = new Settings(settings_path, args.encrypt);
-    let {linkedin} = (await settings.read()) || {};
-    if (qw`login pass searches`.some(x => !linkedin?.[x]))
+    let cfg = (await settings.read()) || {};
+    if (qw`login pass searches`.some(x => !cfg?.[x]))
         return console.error('Use "config" before');
-    await perform_scape(linkedin);
+    await perform_scape(cfg);
     console.log('DONE');
 }
 
@@ -59,13 +64,12 @@ program
     .option('--encrypt=STR', 'Your encrypt password')
     .action(scrape);
 
-async function analyze(args) {
+async function analyze(arg) {
     await ai.init();
-    let settings = new Settings(settings_path, args.encrypt);
-    let {linkedin} = (await settings.read()) || {};
-    if (qw`plain_text_resume`.some(x => !linkedin?.[x]))
-        return console.error('Use "config" before');
-    let resume_txt = fs.readFileSync(linkedin.plain_text_resume, 'utf-8');
+    let settings = new Settings(settings_path, arg.encrypt);
+    /** @type {JobSearchSettings}*/
+    let cfg = (await settings.read()) || {};
+    let resume_txt = fs.readFileSync(path.resolve(await build_resume(), '..', 'resume.txt'), 'utf-8');
     let db = await get_vacancy_db();
     /**@type {Vacancy[]}*/
     let vacancies = await db.findAsync({ai_resp: {$exists: false}});
@@ -73,8 +77,8 @@ async function analyze(args) {
         let {text, job_id} = vacancy;
         let prompt = 'Your role is HR. You need to read given resume and job vacancy and return me ' +
             'percentage of how this job is suitable for both job seeker and recruiter. Your answer should be ' +
-            '0-100% only on first raw, next lines should contains procs/cons for such vacancy.';
-        let all_prompt = [prompt, text, resume_txt].join('\n\n');
+            '0-100% only on first raw, next lines should contains procs/cons for such vacancy.' + cfg?.prompt;
+        let all_prompt = [prompt,  text, resume_txt].join('\n\n');
         let resp = await ai.ask(all_prompt);
         let result = /\d+%/g.exec(resp)?.[0]?.replace('%', '')?.trim();
         let percentage = +result || 0;

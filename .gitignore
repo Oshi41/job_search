@@ -1,7 +1,11 @@
 /node_modules/
-/resume/resume.aux
-/resume/resume.log
-/resume/resume.out
-/resume/resume.pdf
+/tex/resume/resume.aux
+/tex/resume/resume.log
+/tex/resume/resume.out
+/tex/resume/resume.pdf
 /auxil/
 /out/
+/cv/main.tex
+/cv/photo.png
+/cv/styles.sty
+/tex/cv/photo.png

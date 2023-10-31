@@ -8,7 +8,6 @@ import {
 } from "./utils.js";
 
 
-
 /**
  *
  * @param page {Page}
@@ -78,7 +77,7 @@ async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} 
         .filter(n => n.id).map(n => ({id: n.id})).length);
     let db = await get_vacancy_db();
 
-    async function scape_single_vacancy({selector, job_id}){
+    async function scape_single_vacancy({selector, job_id}) {
         let vacancy = await page.$(selector); // li
         await vacancy.scrollIntoView();
         console.debug('Scrolled to vacancy');
@@ -102,7 +101,7 @@ async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} 
             return;
         }
 
-        await update_one(db, {job_id: +job_id} ,{
+        await update_one(db, {job_id: +job_id}, {
             link,
             text,
             easy_apply: !!easy_apply,
@@ -139,11 +138,10 @@ async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} 
                 };
             });
         });
-        map = map.filter(x=>Number.isInteger(x.job_id));
+        map = map.filter(x => Number.isInteger(x.job_id));
         console.debug('Founded', map.length, 'vacancies on', page_id, 'page');
 
-        while (map.length)
-        {
+        while (map.length) {
             try {
                 await scape_single_vacancy(map[0]);
                 map.shift();
@@ -156,8 +154,7 @@ async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} 
 
     let i = 1, end = Math.min(buttons_count, max_page);
 
-    while (i <= end)
-    {
+    while (i <= end) {
         try {
             await scrape_single_page(i);
             i++;
@@ -169,10 +166,10 @@ async function scrape_search_results(page, max_page, meta, {on_vacancy_founded} 
 }
 
 /**
- * @param linkedin {{login: string, pass: string, searches: string[]}}
+ * @param settings {JobSearchSettings}
  * @returns {Promise<Vacancy[]>}
  */
-export default async function main(linkedin, opt) {
+export default async function main(settings, opt) {
     let browser = await get_puppeteer();
     const page = await browser.newPage();
     /** @type {CDPSession} */
@@ -205,13 +202,13 @@ export default async function main(linkedin, opt) {
 
     await page.goto('https://www.linkedin.com/uas/login',
         {waitUntil: 'load'});
-    await try_auth(page, linkedin);
+    await try_auth(page, settings);
     await wait_rand(574);
 
-    for (let search_txt of linkedin.searches) {
+    for (let search_txt of settings.searches) {
         let url = new URL('https://www.linkedin.com/jobs/search');
         url.searchParams.append('keywords', search_txt);
-        url.searchParams.append('location', 'worldwide');
+        url.searchParams.append('location', settings.location);
 
         console.debug('navigate to user search');
         await page.goto(url.toString(), {waitUntil: 'load'});

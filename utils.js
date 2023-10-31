@@ -180,6 +180,7 @@ export async function update_one(db, q, upd){
  * @property {string} pass - LinkedIn account password
  * @property {string[]} searches - List of LinkedIn job searches
  * @property {string} location - Desired LinkedIn job location
+ * @property {string?} prompt - Optional AI chat prompt
  */
 
 /**
