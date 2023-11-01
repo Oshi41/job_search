@@ -195,7 +195,8 @@ export async function build_resume(percentage = Number.NaN) {
         throw new Error('Cannot find/generate resume');
 
     let resume_txt = path.join(dir, 'resume.txt');
-    if (!fs.existsSync(resume_txt))
+    // need to create it only for common/default resume
+    if (!Number.isNaN(percentage) && !fs.existsSync(resume_txt))
     {
         await new Promise((resolve, reject) => {
             pdf_text_extract(resume_pdf, {}, function (err, data) {

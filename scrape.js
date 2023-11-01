@@ -4,39 +4,8 @@ import {
     user_typing,
     wait_rand,
     get_vacancy_db,
-    update_one
+    update_one, try_linkedin_auth
 } from "./utils.js";
-
-
-/**
- *
- * @param page {Page}
- * @param login {string}
- * @param pass {string}
- * @returns {Promise<void>}
- */
-async function try_auth(page, {login, pass}) {
-    console.debug('trying to auth');
-    /*** @type {ElementHandle}*/
-    let input = await page.$('input#username');
-    if (input) {
-        console.debug('entering login');
-        await user_typing(input, login);
-        await wait_rand(261);
-    }
-    input = await page.$('input#password');
-    if (input) {
-        console.debug('entering password');
-        await user_typing(input, pass);
-        await wait_rand(247);
-    }
-    /*** @type {ElementHandle}*/
-    let btn = await page.$('button.btn__primary--large');
-    if (btn) {
-        console.debug('login click');
-        await btn.click({button: 'left'});
-    }
-}
 
 /**
  * @param page {Page}
@@ -186,6 +155,8 @@ export default async function main(settings, opt) {
             let applies = job_info?.data?.applies || 0;
             let location = job_info?.data?.formattedLocation;
             let job_id = +new URL(url).pathname.split('/').pop();
+            let applied_time = job_info?.included?.find(x=>Number.isFinite(x.appliedAt))?.appliedAt;
+            applied_time = Number.isFinite(applied_time) ? new Date(applied_time) : null;
 
             if (Number.isInteger(job_id)) {
                 await update_one(db, {job_id: +job_id}, {
@@ -194,6 +165,7 @@ export default async function main(settings, opt) {
                     vacancy_time,
                     applies,
                     location,
+                    applied_time,
                 });
                 console.debug('Updated job', job_id);
             }
@@ -202,7 +174,7 @@ export default async function main(settings, opt) {
 
     await page.goto('https://www.linkedin.com/uas/login',
         {waitUntil: 'load'});
-    await try_auth(page, settings);
+    await try_linkedin_auth(page, settings);
     await wait_rand(574);
 
     for (let search_txt of settings.searches) {
