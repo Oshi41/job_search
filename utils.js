@@ -2,6 +2,7 @@ import {join_mkdir, join_mkfile, sleep} from "oshi_utils";
 import puppeteer from "puppeteer";
 import os from "os";
 import {default as nedb} from '@seald-io/nedb';
+import {raw} from "express";
 
 /**
  * @param elem {ElementHandle}
@@ -194,6 +195,27 @@ export async function try_linkedin_auth(page, {login, pass}) {
     }
 }
 
+/**
+ * @param fn {(req: Request, res: Response)=>any|void}
+ * @returns {(req: Request, res: Response)=>void}
+ */
+export function handler(fn){
+    /**
+     * @param req {Request}
+     * @param res {Response}
+     */
+    async function http_handler(req, res, next) {
+        try {
+            let raw_resp = await fn(req, res, next);
+            if (raw_resp)
+                return res.status(200).send(raw_resp)
+        } catch (e) {
+            console.debug('Error during HTTP handler: ' + req.url, e);
+            return res.status(500);
+        }
+    }
+    return http_handler;
+}
 /**
  * @typedef {object} Vacancy
  * @property {URL} link - Job link

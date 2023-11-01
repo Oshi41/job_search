@@ -4,6 +4,7 @@ import {exec, join_mkdir, join_mkfile, question, qw, read_json, Settings, setup_
 import perform_scape from './scrape.js';
 import perform_apply from './apply.js';
 import * as ai from "./ai_integration.js";
+import {serve} from './report/backend/server.js';
 import path from "path";
 import fs from "fs";
 import os from "os";
@@ -127,93 +128,15 @@ program.command('apply')
     .option('--encrypt=STR', 'Your encrypt password')
     .action(apply);
 
-async function create_report(){
-    let db = await get_vacancy_db();
-    /** @type {Vacancy[]}*/
-    let vacancies = await db.find({});
-    console.debug('Total', vacancies.length, 'vacancies');
-    const table_def = [
-        {
-            header: 'Job ID',
-            value: x=>x.job_id,
-        },
-        {
-            header: 'Link',
-            value: x=>`<a data-tippy="${x.text}" href="${x.link}">${x.job_id}</a>`,
-        },
-        {
-            header: 'Location',
-            value: x=>`<a href="${''}">${x.location}</a>`,
-        },
-        {
-            header: 'Compatibility',
-            value: x=>Number.isInteger(x.percentage) ? x.percentage+'%' : '-',
-        },
-        {
-            header: 'Easy apply',
-            value: x=>x.easy_apply ? 'yes' : 'no',
-        },
-        {
-            header: 'Create date',
-            value: x=>new Date(x.vacancy_time).toDateString(),
-        },
-        {
-            header: 'Applies',
-            value: x=>x.applies,
-        },
-        {
-            header: 'Applied',
-            value: x=>x.applied_time ? new Date(x.applied_time).toDateString() : '-',
-        },
-    ];
-    let HTML = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/mobius1/vanilla-Datatables@latest/vanilla-dataTables.min.css">
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/gh/mobius1/vanilla-Datatables@latest/vanilla-dataTables.min.js"></script>    
-    <script>
-        function setup_table() {
-            // setup table
-            new DataTable("#table", {
-                searchable: true,           
-                perPage: 25,     
-            });  
-        }          
-    </script>
-</head>
-<body onload="setup_table()">
-    <table id="table">
-        <thead>
-            <tr>
-                ${table_def.map(x => x.header).map(x => `<td>${(x)}</td>`).join('\n')}       
-            </tr>    
-        </thead>    
-        <tbody>
-            ${vacancies.map(data=>{
-                let cells = table_def.map(x=>`<td>${(x.value(data))}</td>`).join('\n');
-                return `<tr>
-                    ${cells}
-                </tr>`;
-            }).join('\n')}                    
-        </tbody>
-    </table>
-    
-    <script src="https://unpkg.com/tippy.js@3/dist/tippy.all.min.js"></script>
-</body>
-`;
-    let dir = join_mkdir(os.homedir(), 'job_search', 'report');
-    let report_file = path.join(dir, 'report.html');
-    fs.writeFileSync(report_file, HTML, 'utf-8');
-
-    exec(`open "${report_file}"`);
-    console.debug('DONE');
+async function run_report_srv(){
+    let url = await serve();
+    console.debug('Report server was started');
+    exec(`start "${url}"`);
 }
 
 program.command('report')
-    .description('Create HTML report from scrape/apply history')
-    .action(create_report);
+    .description('Open report server')
+    .action(run_report_srv);
 
 program.command('scape-and-analyze')
     .description('Command will scrape jobs for you and arrange it with AI')
