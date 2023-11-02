@@ -63,6 +63,12 @@ function MainControl() {
     }, [snackbars]);
     let [info_obj, set_info_obj] = useState(null);
     let [edit_obj, set_edit_obj] = useState(null);
+    let [selected_row, set_selected_row] = useState(null);
+
+    useEffect(()=>{
+        if (!data.includes(selected_row))
+            set_selected_row(null);
+    }, [selected_row, data]);
 
     /**
      * @param text {string}
@@ -348,7 +354,9 @@ function MainControl() {
                     </TableHead>
                     <TableBody ref={tbody_ref}>
                         {table_data && table_data.length && (
-                            table_data.map(src => <TableRow key={src.header}>
+                            table_data.map(src => <TableRow key={src.header}
+                                                            selected={src === selected_row}
+                                                            onClick={()=>set_selected_row(src)}>
                                 {table_def.map(x => <TableCell key={src.header}>
                                     {l ? <Skeleton variant="text"/> : x.value(src)}
                                 </TableCell>)}
