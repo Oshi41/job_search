@@ -211,6 +211,8 @@ export function handler(fn){
                 return res.status(200).send(raw_resp)
         } catch (e) {
             console.debug('Error during HTTP handler: ' + req.url, e);
+            if (e.code)
+                return res.status(e.code).send(e.message);
             return res.status(500);
         }
     }

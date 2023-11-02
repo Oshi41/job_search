@@ -29,6 +29,8 @@ const {
     Stack,
     TextField,
     Tooltip,
+    Button,
+    Modal,
 } = MaterialUI;
 
 const theme = createTheme({
@@ -57,6 +59,8 @@ function MainControl() {
         if (snackbars.length > 0)
             return snackbars[0].severity;
     }, [snackbars]);
+    let [info_obj, set_info_obj] = useState(null);
+    let [edit_obj, set_edit_obj] = useState(null);
 
     /**
      * @param text {string}
@@ -70,23 +74,12 @@ function MainControl() {
         set_snackbars(snackbars.slice(1));
     }
 
-    let [table_state, set_table_state] = useState({});
     let [order_by, set_order_by] = useState();
     let [order_direction, set_order_direction] = useState();
     let [search, set_search] = useState('');
+    let [extended_search, set_extended_search] = useState(false);
 
     let tbody_ref = useRef(null);
-
-    function use_table_state(name, def_val) {
-        let value = table_state[name];
-        let save_value = (new_val) => {
-            table_state[name] = new_val;
-            set_table_state({...table_state});
-        };
-        if (table_state.hasOwnProperty(name) && def_val !== undefined)
-            save_value(def_val);
-        return [value, save_value];
-    }
 
     async function load_data() {
         set_l(true)
@@ -104,32 +97,50 @@ function MainControl() {
         }
     }
 
+    async function update() {
+        let to_apply = {...edit_obj};
+        let source = data.find(x => x.job_id == to_apply.job_id);
+        if (!source)
+            return add_snackbar('Cannot find ' + edit_obj.job_id, 'warning');
+
+        set_l(true);
+        try {
+            await fetch('/vacancy', {
+                method: 'PATCH',
+                body: JSON.stringify(to_apply),
+            });
+        } catch (e) {
+            add_snackbar('Cannot apply vacancy change: ' + e.message, 'error');
+        } finally {
+            set_edit_obj(null);
+            load_data();
+        }
+    }
+
     // auto load data
     useEffect(() => load_data(), []);
 
     const table_def = [
         {
             header: 'Job ID',
-            value: x => x.job_id,
-        },
-        {
-            header: 'Link',
             value: x => <a href={x.link}>{x.job_id}</a>,
             text: x => [x.job_id, x.link],
         },
         {
             header: 'Description',
             value: x => {
-                return <Tooltip title={<Card sx={{maxWidth: '250px', maxHeight: '250px',
-                        overflowY: 'scroll', overflowX: 'hidden'}}>
-                    {x.text.split('\n').map(x=><p>{x}</p>)}
+                return <Tooltip title={<Card sx={{
+                    maxWidth: '250px', maxHeight: '250px',
+                    overflowY: 'scroll', overflowX: 'hidden'
+                }}>
+                    {x.text.split('\n').map(x => <p>{x}</p>)}
                 </Card>}>
                     <IconButton>
                         <Icon>help</Icon>
                     </IconButton>
                 </Tooltip>;
             },
-            text: x => ['Show/hide vacancy text'],
+            text: x => extended_search ? [x.text, x.ai_resp] : [],
         },
         {
             header: 'Location',
@@ -144,7 +155,7 @@ function MainControl() {
         {
             header: 'Easy apply',
             value: x => x.easy_apply ? 'yes' : 'no',
-            sort: x=>x.easy_apply,
+            sort: x => x.easy_apply,
         },
         {
             header: 'Create date',
@@ -158,32 +169,34 @@ function MainControl() {
         {
             header: 'Applied',
             value: x => {
-                if (x.applied_time)
-                    return new Date(x.applied_time).toDateString();
-
-                async function on_check() {
-                    try {
-                        set_l(true);
-                        let res = await fetch('/set_applied', {
-                            method: 'POST',
-                            body: x.job_id,
-                        });
-                        if (!res.ok) {
-                            throw new Error(res.statusCode + ' resp: ' + await res.text());
-                        }
-                    } catch (e) {
-                        add_snackbar('Cannot apply for job: ' + e.message, 'error');
-                    } finally {
-                        load_data();
-                    }
-                }
-
-                return !!l ? <CircularProgress/> :
-                    <Switch label='Already applied' onChange={on_check}/>;
+                if (!x.hasOwnProperty('applied_time') || x.applied_time == null)
+                    return '-';
+                if (!(x.applied_time instanceof Date))
+                    x.applied_time = new Date(x.applied_time);
+                if (x.applied_time.valueOf() == 0)
+                    return 'cancelled';
+                return x.applied_time.toDateString();
             },
-            text: x => [x.applied_time ? new Date(x.applied_time).toDateString() : 'Already applied'],
-            sort: x => new Date(x.applied_time||0),
+            sort: x => new Date(x.applied_time || -1),
         },
+        {
+            header: 'Actions',
+            value: x => {
+                return <Stack direction="row" useFlexGap>
+                    <Tooltip title='Edit vacancy'>
+                        <IconButton onClick={() => set_edit_obj({...x})}>
+                            <Icon>edit</Icon>
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title='Show info'>
+                        <IconButton onClick={e => set_info_obj(x)}>
+                            <Icon>info</Icon>
+                        </IconButton>
+                    </Tooltip>
+                </Stack>
+            },
+            text: x => extended_search ? [x.text, x.ai_resp] : [],
+        }
     ];
 
     let table_data = useMemo(() => {
@@ -226,24 +239,97 @@ function MainControl() {
                 compare_fn = (a, b) => value(a) - value(b);
 
             result = result.sort(compare_fn);
-            if (order_direction == 'desc')
-            {
+            if (order_direction == 'desc') {
                 result = result.reverse();
                 console.log('reversed');
             }
         }
 
         return result;
-    }, [data, order_by, order_direction, search]);
+    }, [data, order_by, order_direction, search, extended_search]);
 
     return <ThemeProvider theme={theme}>
         <div>
-            <Stack direction="row" useFlexGap >
+            <Modal open={!!info_obj}
+                   onClose={() => set_info_obj(null)}>
+                <Card sx={{
+                    margin: '10%', maxHeight: '60%',
+                    overflowY: 'auto', overflowX: 'hidden'
+                }}>
+                    <h1>Vacancy text</h1>
+                    <Paper elevation={3} sx={{padding: '10px'}}>
+                        {info_obj && info_obj.text && info_obj.text.split('\n').map(x => <p>{x}</p>)}
+                    </Paper>
+                    <h1>Ai Response</h1>
+                    <Paper elevation={3} sx={{padding: '10px'}}>
+                        {info_obj && info_obj.ai_resp && info_obj.ai_resp.split('\n').map(x => <p>{x}</p>)}
+                    </Paper>
+                </Card>
+            </Modal>
+            <Modal open={!!edit_obj}
+                   onClose={() => set_edit_obj(null)}>
+                <Paper elevation={3}
+                       sx={{
+                           margin: '15% 25%', overflowY: 'auto', overflowX: 'hidden',
+                           padding: '24px'
+                       }}>
+                    <Stack direction="column" spacing='4px'>
+                        <h1>Edit vacancy № {edit_obj && edit_obj.job_id}</h1>
+                        <Paper elevation={3} sx={{padding: '4px'}}>
+                            <h4>AI response</h4>
+                            <Stack direction="column" spacing='4px'>
+                                <TextField label='Compatibility'
+                                           inputProps={{inputMode: 'numeric', pattern: '[0-9]*'}}
+                                           value={edit_obj && edit_obj.percentage}
+                                           onChange={e => set_edit_obj({
+                                               ...edit_obj,
+                                               percentage: +e.target.value
+                                           })}/>
+                                {edit_obj && edit_obj.ai_resp && <Button startIcon={<Icon>clear</Icon>}
+                                                                         onClick={() => {
+                                    let obj = {...edit_obj};
+                                    delete obj.percentage;
+                                    delete obj.ai_resp;
+                                    set_edit_obj(obj);
+                                }}>Clear AI response</Button>}
+                            </Stack>
+                        </Paper>
+
+                        <Paper elevation={3} sx={{padding: '4px'}}>
+                            <h4>Apply status: {edit_obj && table_def.find(x => x.header == 'Applied').value(edit_obj)}</h4>
+                            <Stack direction="column" spacing='4px'>
+                                {edit_obj && !edit_obj.applied_time && ([
+                                        <Button onClick={() => set_edit_obj({
+                                            ...edit_obj,
+                                            applied_time: new Date()
+                                        })} startIcon={<Icon>approval</Icon>}>
+                                            Already applied
+                                        </Button>,
+
+                                        <Button onClick={() => set_edit_obj({
+                                            ...edit_obj,
+                                            applied_time: new Date(0)
+                                        })} startIcon={<Icon>do_not_disturb_off</Icon>}>
+                                            Mark as cancelled
+                                        </Button>
+                                    ]
+                                )}
+                            </Stack>
+                        </Paper>
+
+                        <Button onClick={update} variant='contained'>Save</Button>
+                    </Stack>
+                </Paper>
+            </Modal>
+            <Stack direction="row" useFlexGap>
                 <h1 style={{width: '100%', verticalAlign: 'baseline'}}>Vacancies history</h1>
+                <Typography>Extended search</Typography>
+                <Switch checked={extended_search}
+                        onChange={e => set_extended_search(e.target.checked)}/>
                 <TextField sx={{verticalAlign: 'baseline'}}
                            label='Enter search text'
                            value={search}
-                           onChange={e=>set_search(e.target.value)}
+                           onChange={e => set_search(e.target.value)}
                 />
             </Stack>
             <TableContainer component={Paper}>

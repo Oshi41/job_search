@@ -8,13 +8,14 @@ app.use(express.json());
 app.use(express.text());
 app.use(express.static(path.resolve('report', 'frontend'))); // HTML files
 
-app.post('/set_applied', handler(async (req, res) => {
-    let job_id = +req.body;
-    if (!Number.isInteger(job_id))
-        throw new Error('Wrong job id');
-
+app.patch('/vacancy', handler(async (req, res) => {
+    let upd = JSON.parse(req.body);
+    if (Object.keys(upd).length < 2 || !upd.job_id)
+        throw Object.assign(new Error('Wrong update object'), {code: 400});
+    let q = {job_id: +upd.job_id};
+    delete upd.job_id;
     let db = await get_vacancy_db();
-    await update_one(db, {job_id}, {applied_time: new Date()});
+    // await update_one(db, q, upd);
     return true;
 }));
 app.get('/vacancies', handler(async req => {
