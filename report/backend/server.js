@@ -1,6 +1,7 @@
 import express from 'express';
 import path from "path";
-import {get_vacancy_db, handler, update_one} from "../../utils.js";
+import {get_vacancy_db, handler, update_one,} from "../../utils.js";
+import {qw} from "oshi_utils";
 
 const app = express();
 
@@ -13,9 +14,15 @@ app.patch('/vacancy', handler(async (req, res) => {
     if (Object.keys(upd).length < 2 || !upd.job_id)
         throw Object.assign(new Error('Wrong update object'), {code: 400});
     let q = {job_id: +upd.job_id};
-    delete upd.job_id;
     let db = await get_vacancy_db();
-    // await update_one(db, q, upd);
+    let upd_req = {$set: {}, $unset: {}};
+    `percentage ai_resp applied_time`.split(' ').forEach(key=>{
+        if (!upd.hasOwnProperty(key))
+            upd_req.$unset[key] = 1;
+        else
+            upd_req.$set[key] = upd[key];
+    });
+    await db.update(q, upd_req);
     return true;
 }));
 app.get('/vacancies', handler(async req => {

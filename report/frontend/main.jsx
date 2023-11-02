@@ -17,6 +17,8 @@ const {
     TableCell,
     TableContainer,
     TableSortLabel,
+    TablePagination,
+    TableFooter,
     Paper,
     Popover,
     Switch,
@@ -78,6 +80,8 @@ function MainControl() {
     let [order_direction, set_order_direction] = useState();
     let [search, set_search] = useState('');
     let [extended_search, set_extended_search] = useState(false);
+    let [page, set_page] = useState(0);
+    let [per_page, set_per_page] = useState(10);
 
     let tbody_ref = useRef(null);
 
@@ -125,22 +129,6 @@ function MainControl() {
             header: 'Job ID',
             value: x => <a href={x.link}>{x.job_id}</a>,
             text: x => [x.job_id, x.link],
-        },
-        {
-            header: 'Description',
-            value: x => {
-                return <Tooltip title={<Card sx={{
-                    maxWidth: '250px', maxHeight: '250px',
-                    overflowY: 'scroll', overflowX: 'hidden'
-                }}>
-                    {x.text.split('\n').map(x => <p>{x}</p>)}
-                </Card>}>
-                    <IconButton>
-                        <Icon>help</Icon>
-                    </IconButton>
-                </Tooltip>;
-            },
-            text: x => extended_search ? [x.text, x.ai_resp] : [],
         },
         {
             header: 'Location',
@@ -245,8 +233,14 @@ function MainControl() {
             }
         }
 
+        // pagination
+        if (per_page > 0)
+        {
+            result = result.slice(page * per_page, (page+1) * per_page);
+        }
+
         return result;
-    }, [data, order_by, order_direction, search, extended_search]);
+    }, [data, order_by, order_direction, search, extended_search, page, per_page]);
 
     return <ThemeProvider theme={theme}>
         <div>
@@ -361,6 +355,20 @@ function MainControl() {
                             </TableRow>)
                         ) || []}
                     </TableBody>
+                    <TableFooter>
+                        <TableRow>
+                            <TablePagination rowsPerPageOptions={[5, 10, 25, 50, { label: 'All', value: -1 }]}
+                                             count={data.length}
+                                             page={page}
+                                             rowsPerPage={per_page}
+                                             onPageChange={(e, p)=>set_page(p)}
+                                             onRowsPerPageChange={e=>{
+                                                 set_page(0);
+                                                 set_per_page(e.target.value);
+                                             }}
+                            />
+                        </TableRow>
+                    </TableFooter>
                 </Table>
             </TableContainer>
             <Snackbar open={snackbars.length > 0}
