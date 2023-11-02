@@ -65,11 +65,6 @@ function MainControl() {
     let [edit_obj, set_edit_obj] = useState(null);
     let [selected_row, set_selected_row] = useState(null);
 
-    useEffect(()=>{
-        if (!data.includes(selected_row))
-            set_selected_row(null);
-    }, [selected_row, data]);
-
     /**
      * @param text {string}
      * @param severity {'error' || 'success' || 'warning' || 'info'}
@@ -137,6 +132,11 @@ function MainControl() {
             text: x => [x.job_id, x.link],
         },
         {
+            header: 'Company',
+            value: x=><a href={x.company_link}>{x.company_name}</a>,
+            text: x => [x.company_link, x.company_name],
+        },
+        {
             header: 'Location',
             value: x => <a>{x.location}</a>,
             text: x => [x.location],
@@ -193,22 +193,22 @@ function MainControl() {
         }
     ];
 
-    let table_data = useMemo(() => {
+    const to_arr = obj => Array.isArray(obj) ? obj : [obj];
+    let filtered_data = useMemo(()=>{
         let result = [];
-        const to_arr = obj => Array.isArray(obj) ? obj : [obj];
 
-        // searching
-        for (let src of data) {
-            // if no search string - all filtered
-            let filtered = !search || search.trim().length < 1;
-            for (let {header, value, text} of table_def) {
-                if (!filtered) {
-                    let texts = (text ? to_arr(text(src)) : [value(src)]).map(x => '' + x).filter(Boolean);
-                    if (texts.some(x => x.toLowerCase().includes(search)))
-                        filtered = true;
-                }
+        // filtering
+        for (let src of data)
+        {
+            let search_parts = search && search.trim().split(' ') || [];
+            for (let {value, text} of table_def)
+            {
+                let source = (text ? to_arr(text(src)) : [value(src)]).map(x => '' + x)
+                    .filter(Boolean).map(x=>x.toLowerCase());
+                let parts = search_parts.filter(x=>source.some(s=>s.includes(x)));
+                search_parts = search_parts.filter(x=>!parts.includes(x));
             }
-            if (filtered)
+            if (!search_parts.length)
                 result.push(src);
         }
 
@@ -223,7 +223,8 @@ function MainControl() {
                     let left = to_arr(text(a));
                     let right = to_arr(text(b));
                     for (let i = 0; i < left.length; i++) {
-                        let diff = left[i] - right[i];
+                        let l = left[i]+'', r = right[i]+'';
+                        let diff = l.localeCompare(r);
                         if (diff)
                             return diff;
                     }
@@ -238,6 +239,10 @@ function MainControl() {
                 console.log('reversed');
             }
         }
+        return result;
+    }, [data, search, extended_search, order_by, order_direction]);
+    let table_data = useMemo(() => {
+        let result = [...filtered_data];
 
         // pagination
         if (per_page > 0)
@@ -246,7 +251,7 @@ function MainControl() {
         }
 
         return result;
-    }, [data, order_by, order_direction, search, extended_search, page, per_page]);
+    }, [filtered_data, page, per_page]);
 
     return <ThemeProvider theme={theme}>
         <div>
@@ -366,7 +371,7 @@ function MainControl() {
                     <TableFooter>
                         <TableRow>
                             <TablePagination rowsPerPageOptions={[5, 10, 25, 50, { label: 'All', value: -1 }]}
-                                             count={data.length}
+                                             count={filtered_data.length}
                                              page={page}
                                              rowsPerPage={per_page}
                                              onPageChange={(e, p)=>set_page(p)}

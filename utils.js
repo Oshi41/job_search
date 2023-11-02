@@ -232,6 +232,8 @@ export function handler(fn){
  * @property {string?} prompt - Prompt used for AI
  * @property {number} applies - Applies for vacancy
  * @property {Date} applied_time - Applies for vacancy
+ * @property {string} company_name - Company name
+ * @property {string} company_link - Company URL link
  */
 
 /**

@@ -55,25 +55,24 @@ function escape_tex(str) {
 /**
  * @returns {Promise<string>}
  */
-async function build_cv(to) {
+async function build_cv(to, percentage = Number.NaN) {
     const cv_path = path.resolve('tex', 'cv', 'main.tex');
     if (!fs.existsSync(cv_path))
         throw new Error(cv_path + ' not found');
 
-    if (!fs.readdirSync(path.resolve('tex', 'cv')).find(x=>x.startsWith('photo.')))
-    {
+    if (!fs.readdirSync(path.resolve('tex', 'cv')).find(x => x.startsWith('photo.'))) {
         let src_dir = path.join(os.homedir(), 'job_search', 'cv');
-        let src_file = fs.readdirSync(src_dir).find(x=>x.startsWith('photo.'));
+        let src_file = fs.readdirSync(src_dir).find(x => x.startsWith('photo.'));
         if (!src_file)
             throw new Error('No photo provided');
         fs.linkSync(path.join(src_dir, src_file), path.resolve(cv_path, '..', src_file));
     }
-    if (!fs.readdirSync(path.resolve('tex', 'cv')).find(x=>x.startsWith('photo.')))
+    if (!fs.readdirSync(path.resolve('tex', 'cv')).find(x => x.startsWith('photo.')))
         throw new Error('No photo provided');
 
     const cv_text = [
-        path.resolve('tex', 'cv', 'cv.text'),
-        path.join(os.homedir(), 'job_search', 'cv', 'cv.text')
+        path.join(os.homedir(), 'job_search', 'cv', Number.isInteger(percentage) ? percentage + '' : 'common' + '.text'),
+        path.join(os.homedir(), 'job_search', 'cv', 'cv.text'),
     ].find(x => fs.existsSync(x));
     if (!cv_text)
         throw new Error('CV text file was not found');
@@ -179,7 +178,7 @@ async function _build_resume(to, percentage = Number.NaN) {
 
 export async function build_resume(percentage = Number.NaN) {
     let dir = join_mkdir(os.homedir(), 'job_search', 'resume',
-        (percentage || 'common')+'');
+        (percentage || 'common') + '');
 
     let resume_pdf = path.join(dir, 'resume.pdf');
     if (!fs.existsSync(resume_pdf))
@@ -196,8 +195,7 @@ export async function build_resume(percentage = Number.NaN) {
 
     let resume_txt = path.join(dir, 'resume.txt');
     // need to create it only for common/default resume
-    if (!Number.isNaN(percentage) && !fs.existsSync(resume_txt))
-    {
+    if (!Number.isNaN(percentage) && !fs.existsSync(resume_txt)) {
         await new Promise((resolve, reject) => {
             pdf_text_extract(resume_pdf, {}, function (err, data) {
                 if (err)
@@ -216,7 +214,7 @@ export async function build_resume(percentage = Number.NaN) {
             // make hard link here, no copy
             fs.linkSync(common_cv, cv_pdf);
         } else {
-            await build_cv(cv_pdf);
+            await build_cv(cv_pdf, percentage);
         }
     }
     if (!fs.existsSync(cv_pdf))
@@ -246,3 +244,5 @@ export async function build_resume(percentage = Number.NaN) {
 
     return result_pdf;
 }
+
+build_resume()

@@ -156,6 +156,8 @@ export default async function main(settings, opt) {
             let location = job_info?.data?.formattedLocation;
             let job_id = +new URL(url).pathname.split('/').pop();
             let applied_time = job_info?.included?.find(x=>Number.isFinite(x.appliedAt))?.appliedAt;
+            let {name: company_name, url: company_link} = job_info?.included
+                ?.find(x=>x.$type == 'com.linkedin.voyager.organization.Company');
             applied_time = Number.isFinite(applied_time) ? new Date(applied_time) : null;
 
             if (Number.isInteger(job_id)) {
@@ -166,6 +168,9 @@ export default async function main(settings, opt) {
                     applies,
                     location,
                     applied_time,
+                    company_name,
+                    company_link,
+                    raw_job_info: job_info,
                 });
                 console.debug('Updated job', job_id);
             }
