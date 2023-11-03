@@ -170,7 +170,7 @@ export default async function main(settings, opt) {
                     applied_time,
                     company_name,
                     company_link,
-                    raw_job_info: job_info,
+                    raw_job_info: JSON.stringify(job_info),
                 });
                 console.debug('Updated job', job_id);
             }
