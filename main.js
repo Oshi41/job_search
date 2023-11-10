@@ -4,7 +4,7 @@ import fs from "fs";
 import {Command} from 'commander';
 import package_json from './package.json' assert {type: "json"}
 import {exec, join_mkdir, join_mkfile, question, qw, read_json, Settings, setup_log, date} from "oshi_utils";
-import {serve} from "./backend/server.js";
+import express from "express";
 
 setup_log({
     log_dir: join_mkdir(os.homedir(), 'job_search', 'logs'),
@@ -25,9 +25,21 @@ program
     .name('start')
     .description('Run main server')
     .action(async () => {
-        let url = await serve();
-        console.debug('Report server was started');
-        exec(`start "${url}"`);
+        const app = express();
+        app.use(express.json());
+        app.use(express.text());
+        app.use(express.static(path.resolve('frontend'))); // HTML files
+
+        let dir = path.resolve('backend');
+        let backends = fs.readdirSync(dir).map(x=>path.join(dir, x));
+        let res = await Promise.all(backends.map(x=>import('file://'+x.toString())));
+        res.filter(x=>x.install).map(x=>x.install(app));
+
+        let port = 6793;
+        app.listen(port, (err) => {
+            let url = 'http://localhost:' + port;
+            exec(`start "${url}"`);
+        });
     });
 //
 // async function config(args) {

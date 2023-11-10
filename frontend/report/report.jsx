@@ -126,7 +126,7 @@ function AddVacancyModal({close}) {
     </Card>
 }
 
-window.VacancyView = function MainControl() {
+window.VacancyView = function MainControl({add_snackbar}) {
     const Table = window.CustomTable;
     const [loading, set_loading] = useState(false);
     const [data, set_data] = useState([]);
@@ -137,8 +137,7 @@ window.VacancyView = function MainControl() {
     const [total, set_total] = useState(0);
     const [selected, set_selected] = useState(null);
     const [show_info, set_show_info] = useState(false);
-    const [show_add, set_show_add] = useState(false)
-    const [snackbars, set_snackbars] = useState([]);
+    const [show_add, set_show_add] = useState(false);
 
     /**
      * @param x {Vacancy}
@@ -153,16 +152,6 @@ window.VacancyView = function MainControl() {
             return 'cancelled';
         return x.applied_time.toLocaleDateString();
     };
-    /** @type {(function(string, 'error' | 'success' | 'warning' | 'info'): void)|*}*/
-    const add_snackbar = useCallback((text, severity = 'info') => {
-        set_snackbars(arr => {
-            let copy = [...arr];
-            copy.push({text, severity});
-            return copy;
-        })
-    }, []);
-    const close_snackbar = useCallback(() => set_snackbars(snackbars.slice(1)),
-        [set_snackbars, snackbars]);
 
     const request_data = useCallback(async () => {
         try {
@@ -447,15 +436,6 @@ window.VacancyView = function MainControl() {
             </Stack>
             <Table sort={sort} filter={filter} page={page} page_size={per_page} columns={columns} data={table_data}
                    on_update={on_update} total={total} loading={loading} selected={selected}/>
-            <Snackbar open={snackbars.length > 0}
-                      autoHideDuration={6000}
-                      onClose={close_snackbar}>
-                <Alert onClose={close_snackbar}
-                       severity={snackbars[0] && snackbars[0].severity}
-                       sx={{width: '100%'}}>
-                    {snackbars[0] && snackbars[0].text}
-                </Alert>
-            </Snackbar>
         </div>
     </ThemeProvider>;
 }
