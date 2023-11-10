@@ -236,6 +236,7 @@ export function handler(fn){
  * @property {string} company_name - Company name
  * @property {string} company_link - Company URL link
  * @property {Date} last_refresh - Last refresh time from scraper
+ * @property {Date} last_touch - Last time record was changed
  */
 
 /**

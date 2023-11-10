@@ -53,35 +53,49 @@ window.CustomTable = ({columns, data, sort, filter, page, page_size, on_update, 
                             let id = x.id;
                             let can_filter = !x.disable_filter;
                             let can_sort = !x.disable_sort;
-                            let select_values = Object.entries(x.select||{})
-                                .map(([label, value])=><MenuItem key={value} value={value}>
-                                {label}
-                            </MenuItem>);
+                            let select_values = Object.entries(x.select || {})
+                                .map(([label, value], i) => {
+                                    return <MenuItem key={i} value={value}>
+                                        {label}
+                                    </MenuItem>
+                                });
+                            let default_value = Object.values(x.select || {})[0];
+                            let selected_value = !select_values.length ? filter[id] : Object.values(x.select).find(s=>{
+                                if (typeof s == 'string')
+                                    return filter[id] === s;
+                                if (s.no_search)
+                                    return false;
+                                if (s.hasOwnProperty('search'))
+                                    return s.search === filter[id];
+                                return false;
+                            });
 
                             return <TableCell key={id}>
                                 <div>
                                     <Stack direction="row">
                                         {can_sort && <TableSortLabel active={sort.hasOwnProperty(id)}
-                                                         direction={sort[id]}
-                                                         onClick={e => {
-                                                             let copy = !!e.ctrlKey ? {...sort} : {};
-                                                             let prev = sort[id];
-                                                             copy[id] = prev == 'asc' ? 'desc' : 'asc';
-                                                             on_update({sort: copy,});
-                                                         }}/>}
+                                                                     direction={sort[id]}
+                                                                     onClick={e => {
+                                                                         let copy = !!e.ctrlKey ? {...sort} : {};
+                                                                         let prev = sort[id];
+                                                                         copy[id] = prev == 'asc' ? 'desc' : 'asc';
+                                                                         on_update({sort: copy,});
+                                                                     }}/>}
                                         <Typography>{header}</Typography>
                                     </Stack>
-                                    {can_filter && <TextField select={select_values.length>0}
-                                                              defaultValue={Object.values(x.select||{})[0]}
-                                                              value={filter[id] || ''}
+                                    {can_filter && <TextField select={select_values.length > 0}
+                                                              defaultValue={default_value}
+                                                              value={selected_value || ''}
                                                               fullWidth
-                                                              onChange={e =>{
+                                                              onChange={e => {
                                                                   let new_val = e.target.value;
-                                                                  let copy = {...filter};
-                                                                  if (new_val.length == 0)
+                                                                  if (new_val.no_search)
+                                                                      new_val = '';
+                                                                  if (new_val.hasOwnProperty('search'))
+                                                                      new_val = new_val.search;
+                                                                  let copy = {...filter, [id]: new_val};
+                                                                  if (typeof new_val == 'string' && new_val.length == 0)
                                                                       delete copy[id];
-                                                                  else
-                                                                      copy[id] = new_val;
                                                                   on_update({filter: copy});
                                                               }}>
                                         {select_values}
@@ -94,8 +108,10 @@ window.CustomTable = ({columns, data, sort, filter, page, page_size, on_update, 
             </TableHead>
             <TableBody>
                 {data.map(x => {
-                    let uniq_key = x.job_id;
-                    return <TableRow selected={selected && selected.includes(uniq_key)}>
+                    return <TableRow onClick={e => {
+                        on_update({selected: x})
+                    }}
+                                     selected={selected === x || (Array.isArray(selected) && selected.includes(x))}>
                         {columns.map(c => {
                             let id = to_arr(x.filters).map(p => x[p]).join('_') || x.sort_by;
                             let cell_content;
