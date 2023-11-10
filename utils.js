@@ -192,6 +192,7 @@ export async function try_linkedin_auth(page, {login, pass}) {
     if (btn) {
         console.debug('login click');
         await btn.click({button: 'left'});
+        return true;
     }
 }
 
@@ -234,6 +235,7 @@ export function handler(fn){
  * @property {Date} applied_time - Applies for vacancy
  * @property {string} company_name - Company name
  * @property {string} company_link - Company URL link
+ * @property {Date} last_refresh - Last refresh time from scraper
  */
 
 /**

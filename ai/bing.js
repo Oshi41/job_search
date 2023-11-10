@@ -11,6 +11,7 @@ const emitter = new EventEmitter();
 const textarea_js_selector_parent = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-action-bar-main").shadowRoot.querySelector("div > div.main-container > div > div.input-row > cib-text-input").shadowRoot.querySelector("#searchboxform")';
 const textarea_js_selector = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-action-bar-main").shadowRoot.querySelector("div > div.main-container > div > div.input-row > cib-text-input").shadowRoot.querySelector("#searchbox")';
 const stop_gen_button = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-action-bar-main").shadowRoot.querySelector("div > cib-typing-indicator").shadowRoot.querySelector("#stop-responding-button")';
+const precise_btn_js_selector = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-conversation-main").shadowRoot.querySelector("#cib-chat-main > cib-welcome-container").shadowRoot.querySelector("div.controls > cib-tone-selector").shadowRoot.querySelector("#tone-options > li:nth-child(3) > button")';
 
 const queue = [];
 let is_processing, prompt_count = 0;
@@ -32,6 +33,9 @@ async function process_queue() {
 
         console.debug('processing AI queue');
         let {text, sec_timeout, cb} = queue[0];
+
+        let precise_btn = await page.evaluateHandle(precise_btn_js_selector);
+        await precise_btn?.click();
 
         let stop_btn = await page.evaluateHandle(stop_gen_button);
         await stop_btn?.click?.(); // stop prev answers

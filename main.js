@@ -1,7 +1,7 @@
 import {Command} from 'commander';
 import package_json from './package.json' assert {type: "json"}
-import {exec, join_mkdir, join_mkfile, question, qw, read_json, Settings, setup_log} from "oshi_utils";
-import perform_scape from './scrape.js';
+import {exec, join_mkdir, join_mkfile, question, qw, read_json, Settings, setup_log, date} from "oshi_utils";
+import {perform_scrape, update_vacancies} from './scrape.js';
 import perform_apply from './apply.js';
 import * as ai from "./ai_integration.js";
 import {serve} from './report/backend/server.js';
@@ -72,7 +72,8 @@ async function scrape(args) {
     let cfg = (await settings.read()) || {};
     if (qw`login pass searches`.some(x => !cfg?.[x]))
         return console.error('Use "config" before');
-    await perform_scape(cfg);
+    await update_vacancies(cfg);
+    await perform_scrape(cfg);
     console.log('DONE');
 }
 
@@ -87,15 +88,22 @@ async function analyze(arg) {
     let settings = new Settings(settings_path, arg.encrypt);
     /** @type {JobSearchSettings}*/
     let cfg = (await settings.read()) || {};
+    await update_vacancies(cfg);
+
     let resume_txt = fs.readFileSync(path.resolve(await build_resume(), '..', 'resume.txt'), 'utf-8');
     let db = await get_vacancy_db();
+
     /**@type {Vacancy[]}*/
     let vacancies = await db.findAsync({ai_resp: {$exists: false}});
     for (let vacancy of vacancies.filter(x => !x.ai_resp)) {
         let {text, job_id} = vacancy;
         let prompt = 'Your role is HR helper. You will need to read resume and vacancy text below and ' +
-            'find out how thi job is sutiable for both job seeker and recruiter. Your response must contain ' +
-            'compatibility percentage (0-100%) then briefly provide vacancy procs/cons.' + cfg?.prompt;
+            'find out how this job is suitable for both job seeker and recruiter. Your response must contain ' +
+            'compatibility percentage (0-100%), newline, provide desired vacancy stack I have (list with bullets), ' +
+            'newline, vacancy stack I do not have (list with bullets), newline, salary is mentioned, newline, ' +
+            'can job provide work/visa/relocation if mentioned, newline, job location if mentioned, newline, ' +
+            'company name and what is it doing (very shortly), newline, what should I do at this role (shortly). '
+            + cfg?.prompt;
         let all_prompt = [prompt, text, resume_txt].join('\n\n');
         let resp = await ai.ask(all_prompt);
         let percentage = +/\d+%/g.exec(resp)?.[0]?.replace('%', '')?.trim() || 0;
@@ -110,32 +118,19 @@ program.command('analyze')
     .option('--encrypt=STR', 'Your encrypt password')
     .action(analyze);
 
-async function apply(arg) {
+async function run_report_srv(arg){
+    let url = await serve();
+    console.debug('Report server was started');
     let settings = new Settings(settings_path, arg.encrypt);
     /** @type {JobSearchSettings}*/
     let cfg = (await settings.read()) || {};
-    if (qw`apply_threshold`.some(x => !cfg[x]))
-        return console.error('use config command');
-    let {phone} = cfg;
-    if (qw`code number`.some(x=>!phone[x]))
-        return console.error('use config command');
-
-    await perform_apply(cfg);
-}
-
-program.command('apply')
-    .description('Auto apply on best jobs for you')
-    .option('--encrypt=STR', 'Your encrypt password')
-    .action(apply);
-
-async function run_report_srv(){
-    let url = await serve();
-    console.debug('Report server was started');
+    // update_vacancies(cfg);
     exec(`start "${url}"`);
 }
 
 program.command('report')
     .description('Open report server')
+    .option('--encrypt=STR', 'Your encrypt password')
     .action(run_report_srv);
 
 program.command('scape-and-analyze')

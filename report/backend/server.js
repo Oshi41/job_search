@@ -25,10 +25,57 @@ app.patch('/vacancy', handler(async (req, res) => {
     await db.update(q, upd_req);
     return true;
 }));
-app.get('/vacancies', handler(async req => {
+app.post('/vacancies', handler(async req => {
     let db = await get_vacancy_db();
-    let all = await db.find({});
-    return all;
+    let {find, sort, skip, limit} = JSON.parse(req.body);
+    let q = {};
+    function split_keys(str) {
+        return str.split(' ').filter(x=>find.hasOwnProperty(x));
+    }
+    let exact_keys = split_keys('easy_apply');
+    let numeric_regex_keys = split_keys('job_id');
+    let numeric_exact_keys = split_keys('percentage applies');
+    let text_regex_keys = split_keys('location');
+
+    for (let key of exact_keys)
+        q[key] = find[key];
+    for (let key of numeric_exact_keys)
+        q[key] = +find[key];
+    for (let key of text_regex_keys)
+        q[key] = {$regex: new RegExp(find[key], 'gi')};
+    if (numeric_regex_keys.length)
+    {
+        q.$where = function () {
+            for (let key of numeric_regex_keys) {
+                if (!this.hasOwnProperty(key))
+                    continue;
+
+                let regex = new RegExp(find[key], 'gi');
+                let src = this[key] + '';
+                if (regex.test(src))
+                    return true;
+            }
+            return false;
+        };
+    }
+
+    // special case
+    if (find.company_name)
+    {
+        q.$or = [
+            {company_name: {$regex: find.company_name}},
+            {text: {$regex: find.company_name}},
+            {ai_resp: {$regex: find.company_name}},
+        ];
+    }
+
+
+    for (let key of Object.keys(sort))
+        sort[key] = sort[key] == 'asc' ? 1 : -1;
+
+    let items = await db.find(q).sort(sort).skip(skip).limit(limit);
+    let count = await db.count(q);
+    return {items, count};
 }));
 
 /**
