@@ -1,4 +1,5 @@
 import {get_vacancy_db, handler, } from "../utils.js";
+import {queue} from './scrape_server.js';
 
 /**
  * @param app {Express}
@@ -106,6 +107,7 @@ export function install(app) {
         insert.last_touch = new Date();
         insert.insert_time = new Date();
         await db.insertAsync(insert);
+        queue.push(job_id);
         return true;
     }));
 }

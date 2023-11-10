@@ -1,5 +1,17 @@
-import {get_puppeteer, get_vacancy_db, handler, update_one} from "../utils.js";
-import {Awaiter, Queue} from "oshi_utils";
+import {
+    get_puppeteer,
+    get_vacancy_db,
+    handler,
+    safely_wait_selector, try_linkedin_auth,
+    update_one,
+    user_typing,
+    wait_rand
+} from "../utils.js";
+import {Awaiter, Queue, Settings} from "oshi_utils";
+import {settings_path} from "./settings_server.js";
+import {use_vacancy_mw} from "./utils.js";
+
+let settings = new Settings(settings_path);
 
 /**
  * @param page {Page}
@@ -53,19 +65,63 @@ export async function setup_listener(page, callback) {
     });
 }
 
+async function read_content(page, selector) {
+    let res = await page.$eval(selector, elem => {
+        return Array.from(elem.childNodes.values()).map(elem => {
+            switch (elem.nodeType) {
+                case Node.TEXT_NODE:
+                    if (elem.tagName == 'LI') {
+                        return '* ' + elem.textContent;
+                    }
+                    return elem.textContent;
+                default:
+                    return elem.innerText;
+            }
+        })
+    });
+    // read all vacancy text here
+    let text = res.slice(1).join('\n').trim();
+    // trim language dependant rows here (to avoid other language injection)
+    text = text.split('\n').slice(1, -1).join('\n');
+    return text;
+}
+
 async function scrape_vacancy(job_id) {
     let db = await get_vacancy_db();
-    let vacancy = await db.find({job_id: +job_id});
+    /** @type {Vacancy}*/
+    let vacancy = await db.findOneAsync({job_id: +job_id});
     if (!vacancy)
         return void console.error(`Requested to scrape ${job_id} which is not existing in database`);
     let awaiter = new Awaiter();
 
     let browser = await get_puppeteer();
     const page = await browser.newPage();
-    setup_listener(page, async vacancy => {
-        await update_one(db, {job_id: vacancy.job_id}, vacancy);
-        awaiter.resolve(vacancy);
-    });
+
+    try {
+        setup_listener(page, async vacancy => {
+            await update_one(db, {job_id: vacancy.job_id}, vacancy);
+            awaiter.resolve(vacancy);
+        });
+
+        await page.goto('https://www.linkedin.com/uas/login', {waitUntil: 'load'});
+        if (await safely_wait_selector(page, 'button.btn__primary--large', 2))
+        {
+            // need to auth
+            if (!settings)
+                throw new Error('No settings provided');
+            let cfg = await settings.read();
+            await try_linkedin_auth(page, cfg);
+        }
+
+        await page.goto(vacancy.link, {waitUntil: 'load'});
+        let text = await read_content(page, '.jobs-description-content');
+        console.debug('Read vacancy content');
+        let easy_apply = !!await page.$(`button[data-job-id="${job_id}"]`);
+        await update_one(db, {job_id}, {text, easy_apply,});
+        console.debug('updated vacancy text');
+    } finally {
+        page.close();
+    }
 }
 
 /**
@@ -78,13 +134,8 @@ export const queue = new Queue(scrape_vacancy);
  * @param app {Express}
  */
 export function install(app) {
-    app.post('/scrape', handler(async req => {
-        let job_id = +req.body;
-        if (!Number.isInteger(job_id))
-            throw Object.assign(new Error('Wrong job ID provided'), {code: 400});
-        let db = await get_vacancy_db();
-        if (await db.countAsync({job_id}) < 1)
-            throw Object.assign(new Error('Such job ID not found in Database'), {code: 400});
+    app.post('/scrape', use_vacancy_mw, handler(async req => {
+        let job_id = req.vacancy.job_id;
         if (!queue.queue.includes(job_id)) {
             queue.push(job_id);
         }
