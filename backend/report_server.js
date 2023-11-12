@@ -98,8 +98,8 @@ export function install(app) {
         /** @type {Job[]}*/
         let in_process = await job_db.findAsync({
             job_id: {$in: job_ids},
-            end: {$exists: false}
-        }).projection({job_db: 1, type: 1});
+            end: {$exists: false},
+        }).projection({job_id: 1, type: 1});
 
         for (let job of in_process) {
             result.status[job.job_id] = job.type;
@@ -113,19 +113,19 @@ export function install(app) {
         if (!Number.isInteger(job_id))
             throw Object.assign(new Error('No job ID provided'), {code: 400});
         let db = await get_vacancy_db();
-        if (await db.countAsync({job_id}) > 0)
-            throw Object.assign(new Error('Such Job ID already existing'), {code: 409});
-
-        let insert = `job_id link applied_time`.split(' ').filter(x => upd.hasOwnProperty(x))
-            .reduce((prev, key) => Object.assign(prev, {[key]: upd[key]}), {});
-        insert.last_touch = new Date();
-        insert.insert_time = new Date();
-        await db.insertAsync(insert);
+        if (await db.countAsync({job_id}) == 0)
+        {
+            let insert = `job_id link applied_time`.split(' ').filter(x => upd.hasOwnProperty(x))
+                .reduce((prev, key) => Object.assign(prev, {[key]: upd[key]}), {});
+            insert.last_touch = new Date();
+            insert.insert_time = new Date();
+            await db.insertAsync(insert);
+        }
         const job_db = await get_jobs_db();
         await job_db.insert({
+            job_id,
             type: 'scrape',
             created: new Date(),
-            job_id,
         });
         return true;
     }));

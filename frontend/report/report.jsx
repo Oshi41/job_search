@@ -378,7 +378,8 @@ window.VacancyView = function MainControl({add_snackbar}) {
                     return <Stack direction='row' sx={{alignItems: 'center'}}>
                         {Number.isInteger(x.percentage) && <Typography sx={{marginRight: '8px'}}>{txt}</Typography>}
                         {!data_status[x.job_id] &&
-                            <Tooltip title={Number.isInteger(x.percentage) ? 'Regenerate AI response' : 'Generate AI resp'}>
+                            <Tooltip
+                                title={Number.isInteger(x.percentage) ? 'Regenerate AI response' : 'Generate AI resp'}>
                                 <Stack direction='row'>
                                     <IconButton onClick={() => reset_ai(x)}>
                                         <Icon>psychology</Icon>
@@ -453,9 +454,24 @@ window.VacancyView = function MainControl({add_snackbar}) {
                     <Button variant="contained"
                             sx={{height: '48px'}}
                             disabled={loading}
-                            onClick={() =>{
+                            onClick={async () => {
                                 set_show_add(true);
-                                set_add_text(filter.job_id || '');
+                                let text = filter.job_id;
+                                if (!text) {
+                                    let saved = await navigator.clipboard.readText();
+                                    if (Number.isInteger(+saved))
+                                        text = saved;
+                                    else {
+                                        try {
+                                            new URL(saved);
+                                            if (saved.includes('linkedin'))
+                                                text = saved;
+                                        } catch (e) {
+                                             // ignored
+                                        }
+                                    }
+                                }
+                                set_add_text(text || '');
                             }}
                             startIcon={<Icon>add</Icon>}>
                         Add vacancy

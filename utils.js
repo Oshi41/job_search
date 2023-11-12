@@ -143,7 +143,7 @@ export async function get_jobs_db() {
         /*** @type {Nedb<Job>}*/
         let db = new nedb({filename});
         db.filename = filename;
-        await db.ensureIndexAsync({fieldName: ['job_id', 'created'], unique: true});
+        await db.ensureIndexAsync({fieldName: ['created', 'type'], unique: true});
         console.debug('jobs db init');
         await db.loadDatabaseAsync();
         console.log('loaded jobs database');
@@ -181,7 +181,7 @@ export async function update_one(db, q, upd) {
     if (count == 0)
         return await db.insertAsync(doc);
     if (count == 1) {
-        let res = await db.updateAsync(q, {$set: upd});
+        let res = await db.updateAsync(q, {$set: upd}, {upsert: false});
         return res;
     }
     throw new Error('Wrong query');
@@ -287,7 +287,7 @@ export function handler(fn) {
 /**
  * @typedef {object} Job
  * @property {number} job_id - Job ID
- * @property {'ai' | 'scrape'} type - job type
+ * @property {'ai' | 'scrape' | 'scrape_vacancies_count'} type - job type
  * @property {Date} created - when task was created
  * @property {Date} scheduled - when task was scheduled
  * @property {Date} start - when task was started
