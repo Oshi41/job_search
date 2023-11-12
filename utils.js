@@ -287,7 +287,7 @@ export function handler(fn) {
 /**
  * @typedef {object} Job
  * @property {number} job_id - Job ID
- * @property {'ai' | 'scrape' | 'scrape_vacancies_count'} type - job type
+ * @property {'ai' | 'scrape' | 'scrape_vacancies_count' | 'scrape_search'} type - job type
  * @property {Date} created - when task was created
  * @property {Date} scheduled - when task was scheduled
  * @property {Date} start - when task was started

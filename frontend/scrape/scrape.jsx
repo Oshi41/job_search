@@ -29,9 +29,10 @@ const {
 } = MaterialUI;
 
 window.ScrapeView = function ({add_snackbar}) {
-    const [links, set_links] = useState({});
+    const Table = window.CustomTable;
+    const [table_data, set_table_data] = useState([]);
     const [loading, set_loading] = useState(false);
-    const [srv_loading, set_srv_loading] = useState(false)
+    const [srv_loading, set_srv_loading] = useState(false);
 
     const get_links = useCallback(async () => {
         try {
@@ -45,7 +46,17 @@ window.ScrapeView = function ({add_snackbar}) {
             }
             else
             {
-                set_links(links);
+                let result = [];
+                for (let [name, {url, scraping, total}] of Object.entries(links))
+                {
+                    result.push({
+                        name,
+                        url,
+                        scraping,
+                        total
+                    });
+                }
+                set_table_data(result);
                 set_srv_loading(false);
             }
         } catch (e) {
@@ -56,32 +67,52 @@ window.ScrapeView = function ({add_snackbar}) {
     }, []);
     useEffect(()=>void get_links(), []);
 
-    let controls = useMemo(() => {
-        if (loading || srv_loading)
-        {
-            let skeleton = <Skeleton height={48} width={250}/>;
-            return [skeleton, skeleton, skeleton];
-        }
-        let result = [];
-        for (let [name, {url, total}] of Object.entries(links))
-        {
-            result.push(
-                <li>
-                    <a href={url}>{name+` [${total}]`}</a>
-                </li>
-            );
-        }
-        return result;
-    }, [loading, links, srv_loading]);
+    const columns = useMemo(()=>{
+        return [
+            {
+                id: 'name',
+                header: 'Search',
+                disable_filter: true,
+                disable_sort: true,
+                cell: x=>srv_loading || loading ? <Skeleton /> : <a href={x.url}>{x.name}</a>,
+            },
+            {
+                id: 'total',
+                header: 'Estimated count',
+                disable_filter: true,
+                disable_sort: true,
+                cell: x=>srv_loading || loading ? <Skeleton /> : x.total,
+            },
+            {
+                id: 'total',
+                header: 'Actions',
+                disable_filter: true,
+                disable_sort: true,
+                cell: x=>{
+                    if (srv_loading || loading)
+                        return <Skeleton />;
+
+                    if (!x.scraping)
+                        return <Button>Add to database</Button>;
+
+                    if (x.scraping)
+                        return <CircularProgress/>;
+                },
+            },
+        ]
+    }, [srv_loading, loading]);
 
     return <Stack direction='column'>
-        <h3>
-            <IconButton onClick={()=>get_links()}>
-                <Icon>refresh</Icon>
-            </IconButton>
-            Manual search
-        </h3>
+        <h3>Manual search</h3>
         <Typography>Use links below for manual vacancy search</Typography>
-        <ul>{controls}</ul>
+        <Table columns={columns}
+               total={table_data.length}
+               loading={loading || srv_loading}
+               data={table_data}
+               page={0}
+               page_size={10}
+               filter={{}}
+               sort={{}}
+        />
     </Stack>
 }
