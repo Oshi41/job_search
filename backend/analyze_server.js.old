@@ -1,0 +1,229 @@
+import path from "path";
+import fs from "fs";
+import {
+    get_puppeteer,
+    get_vacancy_db,
+    handler,
+    safely_wait_idle,
+    safely_wait_selector,
+    update_one,
+    wait_rand
+} from "../utils.js";
+import {use_settings_mw, use_vacancy_mw} from "../backend/utils.js";
+import {Awaiter, date, Queue, sleep} from "oshi_utils";
+import {build_resume} from "../resume_bulider.js";
+
+const textarea_js_selector_parent = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-action-bar-main").shadowRoot.querySelector("div > div.main-container > div > div.input-row > cib-text-input").shadowRoot.querySelector("#searchboxform")';
+const textarea_js_selector = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-action-bar-main").shadowRoot.querySelector("div > div.main-container > div > div.input-row > cib-text-input").shadowRoot.querySelector("#searchbox")';
+const stop_gen_button = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-action-bar-main").shadowRoot.querySelector("div > cib-typing-indicator").shadowRoot.querySelector("#stop-responding-button")';
+const precise_btn_js_selector = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-conversation-main").shadowRoot.querySelector("#cib-chat-main > cib-welcome-container").shadowRoot.querySelector("div.controls > cib-tone-selector").shadowRoot.querySelector("#tone-options > li:nth-child(3) > button")';
+
+/** @type {Vacancy}*/
+let cfg;
+export const bing_queue = new Queue(bing_process_single_item);
+export const claude_queue = new Queue(claude_process_single_item);
+
+async function bing_process_single_item(vacancy) {
+    if (!bing_queue.init) {
+        // init
+        bing_queue.init = new Promise(async (resolve, reject) => {
+            try {
+                let awaiter = new Awaiter();
+                let browser = await get_puppeteer();
+                let page = await browser.newPage();
+                let client = await page.target().createCDPSession();
+                await client.send('Network.enable');
+
+                client.on('Network.webSocketFrameReceived', event => {
+                    const {requestId, response, timestamp} = event;
+                    try {
+                        let first_json = response.payloadData.split('')[0]
+                        let resp = JSON.parse(first_json);
+                        if (resp?.type == 2 && `conversationId requestId`.split(' ').every(x => !!resp.item?.[x]))
+                            awaiter.resolve(resp);
+                    } catch (e) {
+                        // ignored
+                    }
+                });
+
+                // disable search filter
+                await page.goto('edge://settings/searchFilters', {waitUntil: 'load'});
+                let toggle = await page.$('input[type="checkbox"][checked]');
+                await toggle?.click();
+
+                // disable trace defence
+                await page.goto('edge://settings/privacy', {waitUntil: 'load'});
+                toggle = await page.$('input[type="checkbox"][tabindex="0"][checked]');
+                await toggle?.click();
+
+                while (true) {
+                    // checking if we allowed to use chat
+                    await page.goto('https://www.bing.com/', {waitUntil: 'networkidle2'});
+                    // navigate on 'chat'
+                    let link = await page.$('a.customIcon');
+                    await link?.click();
+
+                    // annoying splash screen about safe search settings
+                    if (!await safely_wait_selector(page, '#codexPrimaryButtonCloseModal', 2))
+                        break;
+
+                    let btn = await page.$('#codexPrimaryButtonCloseModal');
+                    await btn.click();
+                }
+
+                await safely_wait_idle(page, 2);
+
+                let textarea_form = await page.evaluateHandle(textarea_js_selector_parent);
+                if (!textarea_form)
+                    throw new Error('Cannot find form');
+                resolve({page, awaiter});
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
+
+    if (bing_queue.throttle > new Date())
+    {
+        if (!claude_queue.queue.includes(vacancy))
+            claude_queue.queue.push(vacancy);
+        return;
+    }
+
+    let {page, awaiter} = await bing_queue.init;
+    let prompt = 'Your role is HR helper. You will need to read resume and vacancy text below and ' +
+        'find out how this job is suitable for both job seeker and recruiter. Your response must contain ' +
+        'compatibility percentage (0-100%), newline, provide desired vacancy stack I have (list with bullets), ' +
+        'newline, vacancy stack I do not have (list with bullets), newline, salary is mentioned, newline, ' +
+        'can job provide work/visa/relocation if mentioned, newline, job location if mentioned, newline, ' +
+        'company name and what is it doing (very shortly), newline, what should I do at this role (shortly). '
+        + cfg?.prompt;
+    let resume_txt = fs.readFileSync(path.resolve(await build_resume(), '..', 'resume.txt'), 'utf-8');
+    let all_prompt = [prompt, vacancy.text, resume_txt].join('\n\n');
+
+    let precise_btn = await page.evaluateHandle(precise_btn_js_selector);
+    await precise_btn?.click();
+
+    let stop_btn = await page.evaluateHandle(stop_gen_button);
+    await stop_btn?.click?.(); // stop prev answers
+
+    let form = await page.evaluateHandle(textarea_js_selector_parent);
+    if (!form)
+        throw new Error('No textbook founded');
+    let textarea = await page.evaluateHandle(textarea_js_selector);
+    if (!textarea)
+        throw new Error('No textbook founded');
+
+    await wait_rand(500);
+
+    await form.$eval('#searchbox', (x, txt) => {
+        x.setAttribute('maxlength', '100000');
+        x.value = txt;
+    }, all_prompt);
+
+    await wait_rand(137);
+    await textarea.focus();
+    await textarea.type(' \n', {delay: 120});
+    let raw_resp = await awaiter.wait_for(30_000);
+    if (raw_resp.item.result.value == 'Throttled') {
+        bing_queue.throttle = date.add(new Date(), {h: 1});
+        throw new Error('You need to wait for send messages to Bing AI chat');
+    }
+    let bot_messages = raw_resp.item.messages?.filter(x => x.author == 'bot' && !x.messageType).map(x => x.text);
+    if (!bot_messages)
+        throw new Error('Empty AI response');
+    let ai_resp = bot_messages.join('\n');
+    await save_ai_resp(vacancy.job_id, ai_resp);
+}
+
+async function get_resp(client, event) {
+    const {requestId, response} = event;
+    let result;
+    try {
+        let {body, base64Encoded} = await client.send('Network.getResponseBody', {requestId});
+        result = body;
+        if (response.mimeType.includes('json'))
+            result = JSON.parse(result);
+    } catch (e) {
+        // ignored
+    }
+    return result;
+}
+
+async function claude_process_single_item(vacancy) {
+    if (!claude_queue.init) {
+        claude_queue.init = new Promise(async (resolve, reject) => {
+            try {
+                let awaiter = new Awaiter();
+                let auth_awaiter = new Awaiter();
+                let browser = await get_puppeteer();
+                let page = await browser.newPage();
+                await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.10136");
+                let client = await page.target().createCDPSession();
+                await client.send('Network.enable');
+
+                client.on('Network.responseReceived', async event => {
+                    const {requestId, type, response} = event;
+                    const {url} = response;
+                    if (type == 'Fetch') {
+                        let body = await get_resp(client, event);
+                        if (url.endsWith('current_account')) {
+                            claude_queue.authorized = 200 == response.status && body?.success;
+                            auth_awaiter.resolve(claude_queue.authorized);
+                        }
+
+                        if (url.endsWith('chat_conversations')) {
+
+                        }
+                    }
+                });
+
+                await page.goto('https://claude.ai/chats', {waitUntil: 'load'});
+                if (!claude_queue.authorized)
+                {
+                    await page.evaluate(`alert('You need to authenticate by yourself')`);
+                    await page.goto('https://claude.ai/chats', {waitUntil: 'load'});
+                    while (!claude_queue.authorized)
+                    {
+                        await auth_awaiter.wait_for();
+                    }
+                }
+
+                await sleep(1000 * 1000);
+
+                resolve({awaiter, page});
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
+    let {awaiter, page} = await claude_queue.init;
+}
+
+async function save_ai_resp(job_id, ai_resp) {
+    let percentage = +/\d+%/g.exec(ai_resp)?.[0]?.replace('%', '')?.trim() || 0;
+    let db = await get_vacancy_db();
+    await update_one(db, {job_id: +job_id}, {ai_resp, percentage});
+    return true;
+}
+
+/**
+ * @param app {Express}
+ */
+export async function install(app) {
+    return;
+    app.post('/analyze/bing', use_vacancy_mw, use_settings_mw, handler(async req => {
+        const {vacancy, db, settings} = req;
+        cfg = settings;
+        if (bing_queue.throttle && bing_queue.throttle > new Date()) {
+
+        }
+        if (!bing_queue.queue.some(x => x.job_id == vacancy.job_id))
+            bing_queue.push(vacancy);
+        return true;
+    }));
+}
+
+claude_queue.push({});

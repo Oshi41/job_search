@@ -1,6 +1,4 @@
-import puppeteer from "puppeteer";
 import {join_mkdir, sleep} from "oshi_utils";
-import os from "os";
 import {get_puppeteer, safely_wait_idle, safely_wait_selector, wait_rand} from "../utils.js";
 import {EventEmitter} from 'events';
 

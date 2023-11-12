@@ -1,5 +1,5 @@
 import {join_mkdir, join_mkfile, sleep} from "oshi_utils";
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-extra";
 import os from "os";
 import {default as nedb} from '@seald-io/nedb';
 import {raw} from "express";
@@ -91,6 +91,12 @@ let browser_promise;
 export async function get_puppeteer() {
     if (!browser_promise) {
         browser_promise = new Promise(async resolve => {
+            const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
+            puppeteer.use(StealthPlugin.default());
+
+            // const AdblockerPlugin = await import('puppeteer-extra-plugin-adblocker')
+            // puppeteer.use(AdblockerPlugin.default({ blockTrackers: true }));
+
             resolve(await puppeteer.launch({
                 executablePath: "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
                 headless: false,
@@ -107,7 +113,7 @@ export async function get_puppeteer() {
     return await browser_promise;
 };
 
-let vacancy_db_p, resume_db_p;
+let vacancy_db_p, jobs_db_p;
 
 /**
  * @returns {Promise<Nedb<Vacancy>>}
@@ -129,11 +135,30 @@ export async function get_vacancy_db() {
 }
 
 /**
+ * @returns {Promise<Nedb<Job>>}
+ */
+export async function get_jobs_db() {
+    jobs_db_p = jobs_db_p || new Promise(async (resolve, reject) => {
+        let filename = join_mkfile(os.homedir(), 'job_search', 'jobs.jsonl');
+        /*** @type {Nedb<Job>}*/
+        let db = new nedb({filename});
+        db.filename = filename;
+        await db.ensureIndexAsync({fieldName: ['job_id', 'created'], unique: true});
+        console.debug('jobs db init');
+        await db.loadDatabaseAsync();
+        console.log('loaded jobs database');
+        resolve(db);
+    });
+
+    return await jobs_db_p;
+}
+
+/**
  * @param page {Page}
  * @param keys {KeyInput}
  * @returns {Promise<void>}
  */
-export async function press_keys(page, ...keys){
+export async function press_keys(page, ...keys) {
     for (let key of keys) {
         await page.keyboard.down(key);
         await wait_rand(100);
@@ -150,17 +175,14 @@ export async function press_keys(page, ...keys){
  * @param upd {any}
  * @returns {Promise<void>}
  */
-export async function update_one(db, q, upd){
+export async function update_one(db, q, upd) {
     let count = await db.countAsync(q);
     let doc = Object.assign({...upd}, q);
     if (count == 0)
         return await db.insertAsync(doc);
-    if (count == 1)
-    {
-        let source = await db.findOneAsync(q);
-        console.assert(1 == await db.removeAsync(q));
-        Object.assign(source, upd);
-        return await db.insertAsync(source);
+    if (count == 1) {
+        let res = await db.updateAsync(q, {$set: upd});
+        return res;
     }
     throw new Error('Wrong query');
 }
@@ -200,7 +222,7 @@ export async function try_linkedin_auth(page, {login, pass}) {
  * @param fn {(req: Request, res: Response)=>any|void}
  * @returns {(req: Request, res: Response)=>void}
  */
-export function handler(fn){
+export function handler(fn) {
     /**
      * @param req {Request}
      * @param res {Response}
@@ -217,8 +239,10 @@ export function handler(fn){
             return res.status(500);
         }
     }
+
     return http_handler;
 }
+
 /**
  * @typedef {object} Vacancy
  * @property {URL} link - Job link
@@ -258,4 +282,15 @@ export function handler(fn){
  * @typedef {object} ResumeCache
  * @property {string} fullpath - fullpath to resume file
  * @property {string} hash - md5 hash of text it was made of
+ */
+
+/**
+ * @typedef {object} Job
+ * @property {number} job_id - Job ID
+ * @property {'ai' | 'scrape'} type - job type
+ * @property {Date} created - when task was created
+ * @property {Date} scheduled - when task was scheduled
+ * @property {Date} start - when task was started
+ * @property {Date} end - when task was ended
+ * @property {Error?} error - if error occured
  */

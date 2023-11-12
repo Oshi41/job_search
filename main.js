@@ -31,14 +31,19 @@ program
         app.use(express.static(path.resolve('frontend'))); // HTML files
 
         let dir = path.resolve('backend');
-        let backends = fs.readdirSync(dir).map(x=>path.join(dir, x));
+        let backends = fs.readdirSync(dir).filter(x=>x.includes('server') && x.endsWith('.js')).map(x=>path.join(dir, x));
         let res = await Promise.all(backends.map(x=>import('file://'+x.toString())));
         res.filter(x=>x.install).map(x=>x.install(app));
+
+        dir = path.resolve('workers');
+        backends = fs.readdirSync(dir).filter(x=>x.includes('worker') && x.endsWith('.js')).map(x=>path.join(dir, x));
+        res = await Promise.all(backends.map(x=>import('file://'+x.toString())));
+        res.filter(x=>x.run).map(x=>x.run());
 
         let port = 6793;
         app.listen(port, (err) => {
             let url = 'http://localhost:' + port;
-            exec(`start "${url}"`);
+            // exec(`start "${url}"`);
         });
     });
 //

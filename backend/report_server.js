@@ -1,5 +1,5 @@
-import {get_vacancy_db, handler, } from "../utils.js";
-import {queue} from './scrape_server.js';
+import {get_jobs_db, get_vacancy_db, handler,} from "../utils.js";
+import {use_vacancy_mw} from "./utils.js";
 
 /**
  * @param app {Express}
@@ -91,7 +91,21 @@ export function install(app) {
 
         let items = await db.find(q).sort(sort).skip(skip).limit(limit);
         let count = await db.count(q);
-        return {items, count};
+        let result = {items, count, status: {}};
+
+        let job_ids = items.map(x=>x.job_id);
+        let job_db = await get_jobs_db();
+        /** @type {Job[]}*/
+        let in_process = await job_db.findAsync({
+            job_id: {$in: job_ids},
+            end: {$exists: false}
+        }).projection({job_db: 1, type: 1});
+
+        for (let job of in_process) {
+            result.status[job.job_id] = job.type;
+        }
+
+        return result;
     }));
     app.post('/vacancy', handler(async req => {
         let upd = JSON.parse(req.body);
@@ -107,7 +121,29 @@ export function install(app) {
         insert.last_touch = new Date();
         insert.insert_time = new Date();
         await db.insertAsync(insert);
-        queue.push(job_id);
+        const job_db = await get_jobs_db();
+        await job_db.insert({
+            type: 'scrape',
+            created: new Date(),
+            job_id,
+        });
+        return true;
+    }));
+    app.post('/analyze', use_vacancy_mw, handler(async req => {
+        let job_db = await get_jobs_db();
+        let count = await job_db.countAsync({
+            job_id: +req.vacancy.job_id,
+            type: 'ai',
+            end: {$exists: false},
+        });
+        if (count == 0)
+        {
+            await job_db.insertAsync({
+                job_id: +req.vacancy.job_id,
+                created: new Date(),
+                type: 'ai',
+            });
+        }
         return true;
     }));
 }

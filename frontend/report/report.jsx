@@ -26,6 +26,7 @@ const {
     Modal,
     Checkbox,
     FormControlLabel,
+    Select,
 } = MaterialUI;
 
 const theme = createTheme({
@@ -61,8 +62,7 @@ const useDebounceEffect = (fn, mls, deps) => {
     }, deps);
 }
 
-function AddVacancyModal({close}) {
-    const [text, set_text] = useState('');
+function AddVacancyModal({close, text, set_text}) {
     const [applied, set_applied] = useState(false);
 
     function get_help_text(text) {
@@ -138,6 +138,8 @@ window.VacancyView = function MainControl({add_snackbar}) {
     const [selected, set_selected] = useState(null);
     const [show_info, set_show_info] = useState(false);
     const [show_add, set_show_add] = useState(false);
+    const [data_status, set_data_status] = useState({});
+    const [add_text, set_add_text] = useState('');
 
     /**
      * @param x {Vacancy}
@@ -164,9 +166,26 @@ window.VacancyView = function MainControl({add_snackbar}) {
             url.searchParams.append('find', JSON.stringify(filter));
 
             let resp = await fetch('/vacancies' + url.search);
-            let {items, count} = await resp.json();
+            let {items, count, status: _status} = await resp.json();
+            for (let key in _status) {
+                let frontend_status, val = _status[key];
+                switch (val) {
+                    case 'ai':
+                        frontend_status = {icon: 'psychology_alt', tooltip: 'AI analyzing...'};
+                        break;
+                    case 'scrape':
+                        frontend_status = {icon: 'travel_explore', tooltip: 'Scraping...'};
+                        break;
+                }
+                if (frontend_status)
+                    _status[key] = frontend_status;
+                else
+                    delete _status[key];
+            }
+
             set_data(items);
             set_total(count);
+            set_data_status(_status);
         } catch (e) {
             add_snackbar('Error during items request: ' + e.message, 'error');
             console.error('Error during items request:', e);
@@ -257,7 +276,13 @@ window.VacancyView = function MainControl({add_snackbar}) {
             });
             if (!res.ok)
                 throw new Error('Cannot change vacancy:' + await res.text());
-            add_snackbar(`Applied to ${source.job_id}`, 'success');
+            res = await fetch('/analyze', {
+                method: 'POST',
+                body: source.job_id,
+            });
+            if (!res.ok)
+                throw new Error('Cannot request for ai regenerate:' + await res.text());
+            add_snackbar(`Regenerating ai resp for ${source.job_id}`, 'success');
         } catch (e) {
             add_snackbar('Error during applying to vacancy: ' + e.message, 'error');
             console.error('Error during applying to vacancy:', e);
@@ -347,21 +372,23 @@ window.VacancyView = function MainControl({add_snackbar}) {
             },
             {
                 header: 'Compatibility',
+                id: 'percentage',
                 cell: x => {
                     let txt = Number.isInteger(x.percentage) ? x.percentage + '%' : '-';
-                    let controls = [<Typography>{txt}</Typography>];
-                    if (Number.isInteger(x.percentage)) {
-                        controls.unshift(
-                            <Tooltip title='Reset AI response'>
-                                <IconButton onClick={() => reset_ai(x)}>
-                                    <Icon>person_off</Icon>
-                                </IconButton>
+                    return <Stack direction='row' sx={{alignItems: 'center'}}>
+                        {Number.isInteger(x.percentage) && <Typography sx={{marginRight: '8px'}}>{txt}</Typography>}
+                        {!data_status[x.job_id] &&
+                            <Tooltip title={Number.isInteger(x.percentage) ? 'Regenerate AI response' : 'Generate AI resp'}>
+                                <Stack direction='row'>
+                                    <IconButton onClick={() => reset_ai(x)}>
+                                        <Icon>psychology</Icon>
+                                    </IconButton>
+                                </Stack>
                             </Tooltip>
-                        );
-                    }
-                    return <Stack direction='row' sx={{alignItems: 'center'}}>{controls}</Stack>;
+                        }
+                        {data_status[x.job_id] && <CircularProgress/>}
+                    </Stack>;
                 },
-                id: 'percentage',
             },
             {
                 header: 'Easy apply',
@@ -376,6 +403,13 @@ window.VacancyView = function MainControl({add_snackbar}) {
             {
                 header: 'Last database change',
                 cell: x => {
+                    let {icon, tooltip} = data_status[x.job_id] || {};
+                    if (icon) {
+                        return <div style={{position: 'relative', alignItems: 'center', display: 'flex', gap: '4px'}}>
+                            <Tooltip title={tooltip}><Icon>{icon}</Icon></Tooltip>
+                            <CircularProgress/>
+                        </div>;
+                    }
                     if (!x.last_touch)
                         return '-';
                     return new Date(x.last_touch).toDateString()
@@ -389,7 +423,7 @@ window.VacancyView = function MainControl({add_snackbar}) {
                 id: 'applies',
             },
         ];
-    }, [cancel_vacancy]);
+    }, [cancel_vacancy, data_status]);
 
     return <ThemeProvider theme={theme}>
         <div>
@@ -411,7 +445,7 @@ window.VacancyView = function MainControl({add_snackbar}) {
             </Modal>
             <Modal open={show_add}
                    onClose={() => set_show_add(false)}>
-                <AddVacancyModal close={add_vacancy}/>
+                <AddVacancyModal close={add_vacancy} text={add_text} set_text={set_add_text}/>
             </Modal>
             <Stack direction='row' gap='8px'>
                 <h1 style={{width: '100%'}}>Vacancies</h1>
@@ -419,7 +453,10 @@ window.VacancyView = function MainControl({add_snackbar}) {
                     <Button variant="contained"
                             sx={{height: '48px'}}
                             disabled={loading}
-                            onClick={() => set_show_add(true)}
+                            onClick={() =>{
+                                set_show_add(true);
+                                set_add_text(filter.job_id || '');
+                            }}
                             startIcon={<Icon>add</Icon>}>
                         Add vacancy
                     </Button>

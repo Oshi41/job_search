@@ -1,6 +1,3 @@
-import puppeteer from "puppeteer";
-import {join_mkdir} from "oshi_utils";
-import os from "os";
 import {get_puppeteer} from "../utils.js";
 
 let browser, page, client, was_init;

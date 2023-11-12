@@ -16,17 +16,19 @@ export const use_vacancy_mw = handler(async (req, res, next) => {
     next?.();
 });
 
-export const use_settings_mw = handler(async (req, res, next)=>{
-    let pass = req.query.pass || req.params.pass;
-    let settings = new Settings(settings_path, req.query.pass);
+export const use_settings_mw = handler(async (req, res, next) => {
+    req.settings = await read_settings(req.query.pass || req.params.pass);
+    next?.();
+});
+
+export async function read_settings(pass) {
+    let settings = new Settings(settings_path, pass);
     // Has nonull file
-    if (fs.existsSync(settings_path) && fs.statSync(settings_path).size > 0)
-    {
+    if (fs.existsSync(settings_path) && fs.statSync(settings_path).size > 0) {
         let cfg = await settings.read();
         if (!cfg)
             throw Object.assign(new Error('Enter encryption password'), {code: 401});
-        req.settings = cfg;
+        return cfg;
     } else
-        req.settings = {};
-    next?.();
-});
+        return {};
+}
