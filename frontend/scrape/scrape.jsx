@@ -39,16 +39,12 @@ window.ScrapeView = function ({add_snackbar}) {
             set_loading(true);
             let res = await fetch('/links');
             let links = await res.json();
-            if (links.loading)
-            {
+            if (links.loading) {
                 set_srv_loading(true);
                 setTimeout(get_links, 2000); // request again
-            }
-            else
-            {
+            } else {
                 let result = [];
-                for (let [name, {url, scraping, total}] of Object.entries(links))
-                {
+                for (let [name, {url, scraping, total}] of Object.entries(links)) {
                     result.push({
                         name,
                         url,
@@ -65,42 +61,57 @@ window.ScrapeView = function ({add_snackbar}) {
             set_loading(false);
         }
     }, []);
-    useEffect(()=>void get_links(), []);
+    const request_scraping = useCallback(async (arg) => {
+        try {
+            await fetch('/scrape', {
+                method: 'POST',
+                body: JSON.stringify(arg),
+            });
+        } catch (e) {
+            add_snackbar('Error during scrape request: ' + e.message);
+        } finally {
+            get_links();
+        }
+    }, [get_links]);
+    useEffect(() => void get_links(), []);
 
-    const columns = useMemo(()=>{
+    const columns = useMemo(() => {
         return [
             {
                 id: 'name',
                 header: 'Search',
                 disable_filter: true,
                 disable_sort: true,
-                cell: x=>srv_loading || loading ? <Skeleton /> : <a href={x.url}>{x.name}</a>,
+                cell: x => srv_loading || loading ? <Skeleton/> : <a href={x.url}>{x.name}</a>,
             },
             {
                 id: 'total',
                 header: 'Estimated count',
                 disable_filter: true,
                 disable_sort: true,
-                cell: x=>srv_loading || loading ? <Skeleton /> : x.total,
+                cell: x => srv_loading || loading ? <Skeleton/> : x.total,
             },
             {
                 id: 'total',
                 header: 'Actions',
                 disable_filter: true,
                 disable_sort: true,
-                cell: x=>{
+                cell: x => {
                     if (srv_loading || loading)
-                        return <Skeleton />;
+                        return <Skeleton/>;
 
                     if (!x.scraping)
-                        return <Button>Add to database</Button>;
+                    {
+                        let fn = ()=>request_scraping(x);
+                        return <Button onClick={fn}>Add to database</Button>;
+                    }
 
                     if (x.scraping)
                         return <CircularProgress/>;
                 },
             },
         ]
-    }, [srv_loading, loading]);
+    }, [srv_loading, loading, request_scraping]);
 
     return <Stack direction='column'>
         <h3>Manual search</h3>

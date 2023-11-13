@@ -11,7 +11,7 @@ export function install(app) {
         let db = await get_jobs_db();
 
         let any_q = {
-            type: 'scrape_vacancies_count',
+            type: 'scrape_links',
             error: {$exists: false},
         };
         cfg.searches.forEach(x => any_q['links.' + x] = {$exists: true});
@@ -36,7 +36,7 @@ export function install(app) {
         {
             // scheduling refresh job
             let job = {
-                type: 'scrape_vacancies_count',
+                type: 'scrape_links',
                 created: new Date(),
                 links: {},
             };
@@ -50,9 +50,41 @@ export function install(app) {
         }
 
         let last_one = await db.findOneAsync(exact_q);
+        let in_progress = await db.findAsync({
+            type: 'scrape_search',
+            end: {$exists: false},
+        });
         if (!last_one)
-            return {loading: true}
-
-        return last_one.links;
+            return {loading: true};
+        let result = {};
+        for (let [name, {url, total}] of Object.entries(last_one.links))
+        {
+            result[name] = {
+                url,
+                total,
+                scraping: in_progress.some(x=>x.name == name),
+            };
+        }
+        return result;
+    }));
+    app.post('/scrape', handler(async req=>{
+        let {name, url} = JSON.parse(req.body);
+        let db = await get_jobs_db();
+        let running_q = {
+            type: 'scrape_search',
+            name,
+            end: {$exists: false},
+        };
+        if (!await db.countAsync(running_q))
+        {
+            let job = {
+                type: 'scrape_search',
+                name,
+                url,
+                created: new Date(),
+            };
+            await db.insertAsync(job);
+        }
+        return true;
     }));
 }

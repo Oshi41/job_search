@@ -436,7 +436,9 @@ window.VacancyView = function MainControl({add_snackbar}) {
                 }}>
                     <h1>[{selected && selected.job_id}] Vacancy text</h1>
                     <Paper elevation={3} sx={{padding: '10px'}}>
-                        {selected && selected.text && selected.text.split('\n').map((x, i) => <p key={i}>{x}</p>)}
+                        {selected && selected.html_content && <div
+                            dangerouslySetInnerHTML={{__html: selected.html_content}}
+                        />}
                     </Paper>
                     <h1>Ai Response</h1>
                     <Paper elevation={3} sx={{padding: '10px'}}>

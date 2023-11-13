@@ -181,6 +181,7 @@ export async function update_one(db, q, upd) {
     if (count == 0)
         return await db.insertAsync(doc);
     if (count == 1) {
+        delete upd._id;
         let res = await db.updateAsync(q, {$set: upd}, {upsert: false});
         return res;
     }
@@ -256,11 +257,14 @@ export function handler(fn) {
  * @property {string} ai_resp - Raw AI response
  * @property {string?} prompt - Prompt used for AI
  * @property {number} applies - Applies for vacancy
+ * @property {boolean} is_closed - Is vacancy closed
  * @property {Date} applied_time - Applies for vacancy
  * @property {string} company_name - Company name
  * @property {string} company_link - Company URL link
  * @property {Date} last_refresh - Last refresh time from scraper
  * @property {Date} last_touch - Last time record was changed
+ * @property {string} html_content - HTML description
+ * @property {any} raw_job_info - Raw vacancy info
  */
 
 /**
@@ -287,7 +291,7 @@ export function handler(fn) {
 /**
  * @typedef {object} Job
  * @property {number} job_id - Job ID
- * @property {'ai' | 'scrape' | 'scrape_vacancies_count' | 'scrape_search'} type - job type
+ * @property {'ai' | 'scrape' | 'scrape_links' | 'scrape_search'} type - job type
  * @property {Date} created - when task was created
  * @property {Date} scheduled - when task was scheduled
  * @property {Date} start - when task was started

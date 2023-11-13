@@ -21,6 +21,10 @@ export const use_settings_mw = handler(async (req, res, next) => {
     next?.();
 });
 
+/**
+ * @param pass {string?}
+ * @returns {Promise<JobSearchSettings>}
+ */
 export async function read_settings(pass) {
     let settings = new Settings(settings_path, pass);
     // Has nonull file
