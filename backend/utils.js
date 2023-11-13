@@ -29,7 +29,15 @@ export async function read_settings(pass) {
     let settings = new Settings(settings_path, pass);
     // Has nonull file
     if (fs.existsSync(settings_path) && fs.statSync(settings_path).size > 0) {
-        let cfg = await settings.read();
+        let cfg = await settings.read(()=>({
+            location: 'worldwide',
+            ai: [
+                {name: 'bing', use: true},
+                {name: 'claude', use: true},
+                {name: 'gpt', use: true},
+                {name: 'you', use: true},
+            ],
+        }));
         if (!cfg)
             throw Object.assign(new Error('Enter encryption password'), {code: 401});
         return cfg;

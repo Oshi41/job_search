@@ -22,18 +22,6 @@ export async function wait_rand(base) {
 }
 
 /**
- * @param elem {ElementHandle}
- * @param regex {RegExp}
- * @returns {Promise<string>}
- */
-export async function find_prop(elem, regex) {
-    let map = await elem.getProperties();
-    let key = map.keys_arr().find(x => regex.test(x));
-    let prop = map.get(key);
-    return prop?.toString();
-}
-
-/**
  * @param page {Page}
  * @param sec {number}
  * @returns {Promise<void>}
@@ -84,34 +72,6 @@ export async function click_with_mouse(page, elem) {
     await page.mouse.move(x_f, y_f, {steps: 10});
     await page.mouse.click(x_f, y_f, {count: 2});
 }
-
-let browser_promise;
-
-/** @returns {Promise<Browser>}*/
-export async function get_puppeteer() {
-    if (!browser_promise) {
-        browser_promise = new Promise(async resolve => {
-            const StealthPlugin = await import('puppeteer-extra-plugin-stealth');
-            puppeteer.use(StealthPlugin.default());
-
-            // const AdblockerPlugin = await import('puppeteer-extra-plugin-adblocker')
-            // puppeteer.use(AdblockerPlugin.default({ blockTrackers: true }));
-
-            resolve(await puppeteer.launch({
-                executablePath: "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-                headless: false,
-                userDataDir: join_mkdir(os.homedir(), 'job_search', 'browser_data'),
-                defaultViewport: {
-                    width: 2000,
-                    height: 1000,
-                    hasTouch: false,
-                    isMobile: false,
-                },
-            }));
-        })
-    }
-    return await browser_promise;
-};
 
 let vacancy_db_p, jobs_db_p;
 
@@ -274,11 +234,7 @@ export function handler(fn) {
  * @property {string[]} searches - List of LinkedIn job searches
  * @property {string} location - Desired LinkedIn job location
  * @property {string?} prompt - Optional AI chat prompt
- * @property {number} apply_threshold - [1-100] Apply automatically if AI returns vacancy percentage
- * @property {{
- *     code: string,
- *     number: number,
- * }} phone
+ * @property {{name: string, use: boolean}[]} ai - AI settings
  * above this value
  */
 

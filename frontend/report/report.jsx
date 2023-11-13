@@ -264,19 +264,7 @@ window.VacancyView = function MainControl({add_snackbar}) {
         if (!source)
             return void add_snackbar('No selected row', 'warning');
         try {
-            let res = await fetch('/vacancy', {
-                method: 'PATCH',
-                body: JSON.stringify({
-                    job_id: source.job_id,
-                    $unset: {
-                        percentage: 1,
-                        ai_resp: 1
-                    },
-                }),
-            });
-            if (!res.ok)
-                throw new Error('Cannot change vacancy:' + await res.text());
-            res = await fetch('/analyze', {
+            let res = await fetch('/analyze', {
                 method: 'POST',
                 body: source.job_id,
             });

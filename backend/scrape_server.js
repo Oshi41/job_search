@@ -1,5 +1,5 @@
 import {get_jobs_db, handler} from "../utils.js";
-import {read_settings} from "./utils.js";
+import {read_settings, use_vacancy_mw} from "./utils.js";
 import {date} from "oshi_utils";
 
 /**
@@ -86,5 +86,9 @@ export function install(app) {
             await db.insertAsync(job);
         }
         return true;
+    }));
+    app.post('/analyze', use_vacancy_mw, handler(async req=>{
+        let {vacancy} = req;
+
     }));
 }
