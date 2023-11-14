@@ -21,10 +21,9 @@ async function read_ai_cfg() {
     ];
     const {ai} = await read_settings();
     const result = [];
-    for (let name of default_config.map(x => x.name))
-    {
-        let src = ai.find(x=>x.name == name) || {};
-        let from = default_config.find(x=>x.name == name);
+    for (let name of default_config.map(x => x.name)) {
+        let src = ai?.find(x => x.name == name) || {};
+        let from = default_config.find(x => x.name == name);
         result.push(_.assign(src, from));
     }
     return result;
@@ -51,7 +50,7 @@ async function process_single_item({job_id, question}) {
             console.log(`[ai_worker] Skipping ${name} as message is bigger than limit (${question.length} < ${max})`);
             continue;
         }
-        if (!use) {
+        if (use === false) {
             console.log(`[ai worker] Skipping ${name} as it's disabled`);
             continue;
         }
