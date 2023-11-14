@@ -1,5 +1,9 @@
 import {get_jobs_db, get_vacancy_db, handler,} from "../utils.js";
-import {use_vacancy_mw} from "./utils.js";
+import {read_settings, use_vacancy_mw} from "./utils.js";
+import {build_resume} from "../resume_bulider.js";
+import {convert} from 'html-to-text'
+import path from "path";
+import fs from "fs";
 
 /**
  * @param app {Express}
@@ -138,9 +142,22 @@ export function install(app) {
         });
         if (count == 0)
         {
+            let cfg = await read_settings();
+            let prompt = 'Your role is HR helper. You will need to read resume and vacancy text below and ' +
+                'find out how this job is suitable for both job seeker and recruiter. Your response must contain ' +
+                'compatibility percentage (0-100%), newline, provide desired vacancy stack I have (list with bullets), ' +
+                'newline, vacancy stack I do not have (list with bullets), newline, salary is mentioned, newline, ' +
+                'can job provide work/visa/relocation if mentioned, newline, job location if mentioned, newline, ' +
+                'company name and what is it doing (very shortly), newline, what should I do at this role (shortly). '
+                + cfg?.prompt;
+            let resume_txt = fs.readFileSync(path.resolve(await build_resume(), '..', 'resume.txt'), 'utf-8');
+            let vacancy_text = convert(req.vacancy.html_content).replace(/\n\n+/g, '\n');
+            let question = [prompt, resume_txt, vacancy_text].join('\n\n');
+
             await job_db.insertAsync({
                 job_id: +req.vacancy.job_id,
                 created: new Date(),
+                question,
                 type: 'ai',
             });
         }

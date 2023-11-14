@@ -430,7 +430,9 @@ window.VacancyView = function MainControl({add_snackbar}) {
                     </Paper>
                     <h1>Ai Response</h1>
                     <Paper elevation={3} sx={{padding: '10px'}}>
-                        {selected && selected.ai_resp && selected.ai_resp.split('\n').map(x => <p>{x}</p>)}
+                        {selected && selected.ai_resp && <div
+                            dangerouslySetInnerHTML={{__html: selected.ai_resp}}
+                        />}
                     </Paper>
                 </Card>
             </Modal>

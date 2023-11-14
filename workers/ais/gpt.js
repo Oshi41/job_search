@@ -123,5 +123,3 @@ export async function ask(question) {
 
     return res;
 }
-
-ask('Most reach man')

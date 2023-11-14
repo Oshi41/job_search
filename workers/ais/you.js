@@ -114,5 +114,3 @@ export async function ask(question) {
         return raw_resp;
     }
 }
-
-ask('Who is the richest man?');

@@ -104,7 +104,7 @@ export class Worker {
         this.key_fn = key_fn;
         this.queue = new Queue(async function _process_single_item(item) {
             console.debug('starting processing item', item._id);
-            await update_one(db, item, {start: new Date()});
+            await update_one(db, _this.key_fn(item), {start: new Date()});
             let append_to_job = {};
             this.append2job = x => _.assign(append_to_job, x);
             const on_finish = error => {
