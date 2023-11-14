@@ -25,7 +25,7 @@ async function wait_for_auth(page, timeout) {
 let page;
 
 export async function ask(question) {
-    console.debug('asking chat GPT');
+    console.debug('[gpt] asking chat GPT');
     const resp_awaiter = new Awaiter();
     let selector;
 
@@ -41,19 +41,28 @@ export async function ask(question) {
                 try {
                     let {user} = await resp.json();
                     auth_awaiter.resolve(!!user?.id);
+                    console.debug('[gpt] received session info');
                 } catch (e) {
                     // ignored
                 }
             }
 
             if (url?.includes?.('backend-api/lat/r')) {
+                console.debug('[gpt] Response was received');
                 // request has ended
-                let text = await page.evaluate(()=>{
-                    let elem = document.querySelector('.agent-turn');
+                let text = await page.evaluate(() => {
+                    let elem = Array.from(document.querySelectorAll('.agent-turn').values()).pop();
                     let text_only = elem.querySelector('.max-w-full')
                     return text_only.outerHTML;
                 });
                 resp_awaiter.resolve(text);
+            }
+
+            if (url?.includes?.('backend-api/conversation/')) {
+                if (url.endsWith(settings.gpt_chat) && resp.status() >= 400) {
+                    settings.gpt_chat = null;
+                    console.debug(`[gpt] Clear obsolete GPT chat`);
+                }
             }
         });
 
@@ -73,11 +82,16 @@ export async function ask(question) {
         await button?.click();
     }
 
-    selector = '.btn.relative.btn-primary';
-    let button = await page.$(selector);
-    if (!button)
-        throw new Error('Cannot create new chat');
-    await button.click();
+    if (settings.gpt_chat) {
+        await page.goto('https://chat.openai.com/c/' + settings.gpt_chat, {waitUntil: 'networkidle2'});
+    } else {
+        selector = '.btn.relative.btn-primary';
+        let button = await page.$(selector);
+        if (!button)
+            throw new Error('Cannot create new chat');
+        await button.click();
+    }
+
 
     selector = '#prompt-textarea';
     let textarea = await page.$(selector);
@@ -95,8 +109,19 @@ export async function ask(question) {
     await textarea.focus();
     await textarea.type(' \n', {delay: 120});
 
+    console.debug('[gpt] entered prompt, waiting for response');
+
     let res = await resp_awaiter.wait_for(30_000);
     if (!res)
         throw new Error('empty response');
+
+    if (!settings.gpt_chat) {
+        let url = page.url();
+        let id = url.split('/').pop();
+        settings.gpt_chat = id;
+    }
+
     return res;
 }
+
+ask('Most reach man')

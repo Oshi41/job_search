@@ -13,7 +13,7 @@ const awaiter = new Awaiter();
 /** @type {Page}*/
 let page;
 
-export async function ask(text) {
+export async function ask(question) {
     if (settings.bing_throttle && settings.bing_throttle < new Date())
         throw new Error('throttled');
 
@@ -108,7 +108,7 @@ export async function ask(text) {
     await form.$eval('#searchbox', (x, txt) => {
         x.setAttribute('maxlength', '100000');
         x.value = txt;
-    }, text);
+    }, question);
 
     // making last enter with focus
     await wait_rand(137);
@@ -124,7 +124,7 @@ export async function ask(text) {
     if (raw_resp.item.result.value == 'Throttled')
     {
         settings.bing_throttle = date.add(new Date(), {d: 1});
-        return ask(text);
+        return ask(question);
     }
 
     let bot_messages = raw_resp.item?.messages?.filter(x => x.author == 'bot' && !x.messageType).map(x => x.text);

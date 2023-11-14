@@ -11,19 +11,44 @@ import path from "path";
  */
 const ask_map = new Map();
 
+async function read_ai_cfg() {
+    let default_cfg = {
+        'bing': {max: 10_000},
+        'claude': {max: 10_000, use: false}, // disable for now
+        'gpt': {max: 5_000}, // free model support only 8k tokens
+        'you': {max: 10_000},
+    };
+    const {ai} = await read_settings();
+    return _.assign(ai, default_cfg);
+}
+
+/**
+ * @param job_id {number}
+ * @param question {string}
+ * @returns {Promise<void>}
+ */
 async function process_single_item({job_id, question}) {
     let db = await get_vacancy_db();
     let vacancy = await db.findOneAsync({job_id});
     if (!vacancy)
         throw new Error('Cannot find vacancy: '+job_id);
 
-    let settings = await read_settings();
-    for (let {name} of settings.ai)
+    for (let {name, max, use} of await read_ai_cfg())
     {
         let fn = ask_map.get(name);
         if (!fn)
         {
             console.warn('[ai_worker] This AI is not supporting: '+name);
+            continue;
+        }
+        if (question.length > max)
+        {
+            console.log(`[ai_worker] Skipping ${name} as message is bigger than limit (${question.length} < ${max})`);
+            continue;
+        }
+        if (!use)
+        {
+            console.log(`[ai worker] Skipping ${name} as it's disabled`);
             continue;
         }
         try {
