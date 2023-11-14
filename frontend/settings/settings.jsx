@@ -90,22 +90,35 @@ window.SettingsView = function ({add_snackbar}) {
 
                 case 'claude':
                     return <img width="32" height="32"
-                                src='https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/claude-ai-icon.png'></img>
+                                src='https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/claude-ai-icon.png'></img>;
+
+                case 'gpt':
+                    return <img width="32" height="32"
+                                src='https://uxwing.com/wp-content/themes/uxwing/download/brands-and-social-media/chatgpt-icon.png'></img>;
+
+                case 'you':
+                    return <img width="32" height="32"
+                                src='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAE80lEQVR4AZWXA9AkSRQG+4zQ2b5b27Zt27Zt2/burG3btu2xvfMuvop4td0z3bN3FZEx+JFZ1VZKdS4v6drQkrZUCde4EkW9Z+pU9bxuWsNJemyc7aWjez2CK6cC4nVcIwfN7WGWrB7gEGwa9dotGPLizLbRz8Y12Xskldop30BcrryHqpWLJtCwTFDQrGZI0L9LgE6eiNH1c1G6cytGTx/GRMD0Rnaa284pWN3VLiO2D7drQAh7pbxssTdkRI2iIQ6RYOYIgNz8MgYRR8SHcIxuhFj2krlCVCBPTAO+YziCqZrLT9s3vZW7nCQ2y4iKNkRoQpa0tApWtbPE4kPgFrPXyo1DIGb2mHxSjoHPA4paRQSYWt4sIxbWNyeE8Coo2OFyZIxSprQxwms8hTKFgSai2l9erICQh4JvA3rlsydEgHnVzYgAmgjsmEqmjD4z5CoMIzik4K9+bH8px8Am6JjdhQDBuBLmhAgOMTWykIjo9Oy1kiJFQIrTptS+Ap0QBLCcB7Y7AngVOAIkjUCAEP7zN+FVjW5I5t/DNLR/hOJH7XQeDpARwwvqR3DA6gbPSR2gJiEIYgZ7v3rgkMR+0TwrRyQNANoAtfTvPxIjIMXrt1/GaMGsMMUPrAhWQB0AOEAdsbic9V0B+nz+QUx36XEmLPG93zAAsJwDwLpKdhkAgVEEZg257syxI3ZuGVUHcIQMGJ/XKQLmFHRIOZArgPM6znQQMRAyEGCWegMBk8dEKO9HAc0KgAHZPDIAcqCevVyBZasj4qQC8B4zxSsuNhD8l4G/wSoggOUAcnWAqZBLyndXtwoUlgG+svEZzmjWIH4sHx/GkZAQoJYDIS/tfBuAaznL+eJiJMfv4HKMZcfQi0AAy6dlcavlEEtOVnTIFcA/hthw5gjEEZCyQEiAHRfLrjdwtUOAWr4uh4P2FLABlkuUAnXdVLR1iFoPDtPkxWI/AOI9vstSLgApXtXgrGgYgSsdAuLlp4q+FkB8vewrulz1OSnl2tlEAMja1JcUxDK4ewJGEcfHeHXlEAMZUH6QnZj8vV3vBMGM+h5Rb1wfbjaUP6p8T6BUnOokNYXGWZPCsS3aPZH0rPwA9wOGETeK32akGDxseI2UKsssBIouNidQcN5TSdmp9yX1R94W9OtyXTKp6iW6seKmbgREz6ue1UWptOtpjCm08QnpUcp0XUOLuScEgyfsp+k9j0nW1N2fEOHafZdeVNsjsdXTokj5/gekJv/uKwlU2n4+CNQBYPnALYLdXdfT0RarZQTkz5vMJ0cTky62lsvDCv5h/pM3yIh8Jw5JKu/fLmi+y0QDVi0XzJo/nzZOmiE412uW5MboiULubj/lTTKUcmcuXyh4+QoxOa6eUPO/AiAFTwYOEPj69EuKs3efk0rhiwfH6YnT39wjyHlps6Tk+bkCBAzdOUIwb2NfWr+qG52Y11XwYEpbgWNMC0l4VDNd7MOaTFLwrBYvBSlurZf8fWsxxJJ2x/sDTcDOLbXpmqmawDqnqiQ8o7wh9gXZ0ohHM6yCnpjlIN2lMUJe+fxgAQL6HWlMM/fXglwT8Hp1AUF4SV5DnEvTjtE8nKa4tHRcvFQt51e9AI7YuzMfXduWjR5uySACguvS6cJyGcBgcyDkx0uzT35/aUqAgZgpc7IjgwAZATnDEdbNv/sZ18Zfz0OMZVc7/wWAXF3bKsBBsAAAAABJRU5ErkJggg=='></img>;
             }
         }
 
         src = src.map(x => ({
-            name: 'use ' + x.name,
+            name: x.name,
             use: x.use,
-            icon: <svg xmlns="http://www.w3.org/2000/svg" x="0px" y="0px" width="32" height="32" viewBox="0 0 50 50">
-                {get_icon_path(x.name)}
-            </svg>,
+            icon: get_icon_path(x.name),
         }));
         set_ai_cfg(src);
     }, [cfg]);
 
     const save_settings = useCallback(async () => {
-        let cfg = {login, pass, location, searches, prompt, ai: ai_cfg};
+        let cfg = {
+            login,
+            pass,
+            location,
+            searches,
+            prompt,
+            ai: ai_cfg.map(x => ({name: x.name, use: x.use})),
+        };
         try {
             set_loading(true);
             await fetch('/settings', {
@@ -181,24 +194,28 @@ window.SettingsView = function ({add_snackbar}) {
             <h3>Additional AI prompt</h3>
             {!loading && <TextareaAutosize minRows={3}
                                            value={prompt}
-                                           onChange={(e)=>set_prompt(e.target.value)}
+                                           onChange={(e) => set_prompt(e.target.value)}
                                            placeholder="Enter additional prompt for helping AI range vacancies. Use main idea - to lower percentage if something doesn't suit you.
 Example:
 Prefer on site vacancies. Give preference to vacancies with specified salary."></TextareaAutosize>}
             {loading && skeleton}
 
             <h3>AI settings</h3>
-            <ul>
+            <Typography>Program will use any possible Ai for response in this order. You can switch off any AI that is not working properly.</Typography>
+            <Stack direction='column' sx={{padding: '10px'}}>
                 {ai_cfg.map(x => {
-                    const on_click = (e)=>{
+                    const on_click = (e) => {
                         x.use = e.target.checked;
                         set_ai_cfg([...ai_cfg]);
                     };
-                    return <Stack direction='column'>
-                        <FormControlLabel label={x.name} control={<Switch checked={x.use} onChange={on_click}/>}/>
-                    </Stack>;
+                    return <FormControlLabel label={x.name} control={
+                        <Stack direction='row' sx={{marginRight: '8px'}}>
+                            <Switch checked={x.use} onChange={on_click}/>
+                            {x.icon}
+                        </Stack>
+                    }/>;
                 })}
-            </ul>
+            </Stack>
 
             {!loading && <Button sx={{marginTop: '5%'}}
                                  variant='contained'
