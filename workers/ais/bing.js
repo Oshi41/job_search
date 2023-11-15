@@ -1,7 +1,7 @@
 import {Awaiter, date, join_mkfile, Settings} from "oshi_utils";
 import os from "os";
 import {safely_wait_idle, safely_wait_selector, wait_rand} from "../../utils.js";
-import {edge_browser} from "../utils.js";
+import {chromium_browser, edge_browser} from "../utils.js";
 
 const settings = new Settings(join_mkfile(os.homedir(), 'job_search', 'ai_worker.json')).use_fresh(200);
 const textarea_js_selector_parent = 'document.querySelector("#b_sydConvCont > cib-serp").shadowRoot.querySelector("#cib-action-bar-main").shadowRoot.querySelector("div > div.main-container > div > div.input-row > cib-text-input").shadowRoot.querySelector("#searchboxform")';

@@ -3,26 +3,51 @@ import {safely_wait_selector, wait_rand} from "../../utils.js";
 import {Awaiter, join_mkfile, Settings} from "oshi_utils";
 import os from "os";
 
-const settings = new Settings(join_mkfile(os.homedir(), 'job_search', 'ai_worker.json')).use_fresh(200);
-const auth_awaiter = new Awaiter();
-
-async function wait_for_auth(page, timeout) {
-    let handled = false;
-    setTimeout(() => {
-        if (!handled)
-            throw new Error('auth_timeout');
-    }, timeout);
-
-    while (true) {
-        if (await auth_awaiter.wait_for()) {
-            handled = true;
-            return true;
-        }
-    }
-}
-
 /** @type {Page}*/
 let page;
+const settings = new Settings(join_mkfile(os.homedir(), 'job_search', 'ai_worker.json')).use_fresh(200);
+
+function use_reauth(page) {
+    const awaiter = new Awaiter();
+    let authorized = false, is_manual_auth = false;
+    let _goto = page.goto.bind(page);
+
+    page.on('response', async resp => {
+        let url = resp?.url?.();
+        if (url?.includes?.('session')) {
+            try {
+                let {user} = await resp.json();
+                awaiter.resolve(authorized = !!user?.id);
+            } catch (e) {
+                // ignored
+            }
+        }
+    });
+
+    page.goto = async function (url, arg) {
+        let res = await _goto(url, arg);
+
+        // need to auth by yourself
+        if (!authorized && !is_manual_auth) {
+            page.evaluate('alert("You have 120s to authorize by yourself")');
+            let auth_awaiter = new Awaiter();
+
+            // need to be awaited ib background
+            (async () => {
+                while (!authorized)
+                    await awaiter.wait_for();
+
+                // finished manual auth
+                is_manual_auth = false;
+                auth_awaiter.resolve(await page.goto(url, arg));
+            })();
+
+            return await auth_awaiter.wait_for(120_000);
+        }
+
+        return res;
+    };
+}
 
 export async function ask(question) {
     console.debug('[gpt] asking chat GPT');
@@ -32,21 +57,12 @@ export async function ask(question) {
     if (!page) {
         let browser = await chromium_browser();
         page = await browser.newPage();
+        use_reauth(page);
         let client = await page.target().createCDPSession();
         await client.send('Network.enable');
 
         page.on('response', async resp => {
             let url = resp?.url?.();
-            if (url?.includes?.('api/auth/session')) {
-                try {
-                    let {user} = await resp.json();
-                    auth_awaiter.resolve(!!user?.id);
-                    console.debug('[gpt] received session info');
-                } catch (e) {
-                    // ignored
-                }
-            }
-
             if (url?.includes?.('backend-api/lat/r')) {
                 console.debug('[gpt] Response was received');
                 // request has ended
@@ -66,12 +82,7 @@ export async function ask(question) {
             }
         });
 
-        let is_auth_p = auth_awaiter.wait_for();
-        await page.goto('https://chat.openai.com/', {waitUntil: 'load'});
-        if (!await is_auth_p) {
-            await page.evaluate('alert("You have 120s for authentication")');
-            await wait_for_auth(page, 120_000);
-        }
+        await page.goto('https://chat.openai.com', {waitUntil: 'load'});
     }
 
     selector = '[role="dialog"]';
@@ -91,7 +102,6 @@ export async function ask(question) {
             throw new Error('Cannot create new chat');
         await button.click();
     }
-
 
     selector = '#prompt-textarea';
     let textarea = await page.$(selector);

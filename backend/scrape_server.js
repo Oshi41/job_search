@@ -87,8 +87,4 @@ export function install(app) {
         }
         return true;
     }));
-    app.post('/analyze', use_vacancy_mw, handler(async req=>{
-        let {vacancy} = req;
-
-    }));
 }

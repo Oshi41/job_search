@@ -12,12 +12,13 @@ import path from "path";
 const ask_map = new Map();
 
 /** @returns {Promise<{name: string, use: boolean, max: number}[]>}*/
-async function read_ai_cfg() {
+export async function read_ai_cfg() {
     let default_config = [
         {name: 'you', max: 10_000},
+        {name: 'bard', max: 5_000}, // looks like it's lacking context if message is too long
         {name: 'gpt', max: 5_000}, // 8k tokens is max, so lower the char amount
-        {name: 'bing', max: 10_000},
-        {name: 'claude', max: 10_000, use: false}, // disable for now
+        // {name: 'bing', max: 10_000}, // disable them now
+        // {name: 'claude', max: 10_000, use: false},
     ];
     const {ai} = await read_settings();
     const result = [];
@@ -27,6 +28,26 @@ async function read_ai_cfg() {
         result.push(_.assign(src, from));
     }
     return result;
+}
+
+/**
+ * @param ais {{name: string}[]}
+ * @returns {Promise<{name: string}[]>}
+ */
+async function sort_ais(ais) {
+    let jobs_db = await get_jobs_db();
+    let jobs = await jobs_db.findAsync({type: 'ai', ai: {$exists: true}})
+        .sort({end: -1}).projection({ai: 1});
+    jobs = Array.from(new Set(jobs.map(x => x.ai)));
+
+    if (jobs.length) {
+        jobs = jobs.reverse();
+        let rest = ais.map(x => x.name).filter(x => !jobs.includes(x));
+        rest.concat(jobs);
+        rest.map(x => ais.find(a => a.name == x));
+    }
+
+    return ais;
 }
 
 /**
@@ -40,30 +61,40 @@ async function process_single_item({job_id, question}) {
     if (!vacancy)
         throw new Error('Cannot find vacancy: ' + job_id);
 
-    for (let {name, max, use} of await read_ai_cfg()) {
-        let fn = ask_map.get(name);
-        if (!fn) {
+    let ais = await read_ai_cfg();
+    ais = ais.filter(({name, max, use}) => {
+        if (!ask_map.has(name)) {
             console.warn('[ai_worker] This AI is not supporting: ' + name);
-            continue;
+            return false;
         }
+
         if (question.length > max) {
             console.log(`[ai_worker] Skipping ${name} as message is bigger than limit (${question.length} < ${max})`);
-            continue;
+            return false;
         }
+
         if (use === false) {
             console.log(`[ai worker] Skipping ${name} as it's disabled`);
-            continue;
+            return false;
         }
+
+        return true;
+    });
+    ais = await sort_ais(ais);
+
+    for (let {name} of ais) {
         try {
+            let fn = ask_map.get(name);
             let ai_resp = await fn(question);
             if (!ai_resp)
                 throw new Error('empty ai resp');
 
             let percentage = +/\d+%/g.exec(ai_resp)?.[0]?.replace('%', '')?.trim() || 0;
             await update_one(db, {job_id}, {ai_resp, percentage});
+            this.append2job({ai: name}); // saving used AI
             return;
         } catch (e) {
-            // ignored
+            console.warn('Error during AI resp:', e);
         }
     }
 

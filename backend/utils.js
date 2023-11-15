@@ -2,6 +2,7 @@ import {get_vacancy_db, handler} from "../utils.js";
 import {Settings} from "oshi_utils";
 import {settings_path} from "./settings_server.js";
 import fs from "fs";
+import {read_ai_cfg} from "../workers/ai_worker.js";
 
 export const use_vacancy_mw = handler(async (req, res, next) => {
     let job_id = req.query.job_id || req.params.job_id || req.body;
@@ -17,7 +18,9 @@ export const use_vacancy_mw = handler(async (req, res, next) => {
 });
 
 export const use_settings_mw = handler(async (req, res, next) => {
-    req.settings = await read_settings(req.query.pass || req.params.pass);
+    let pass = req.query.pass || req.params.pass;
+    req.settings = await read_settings(pass);
+    req.settings.ai = await read_ai_cfg(pass);
     next?.();
 });
 
@@ -31,12 +34,6 @@ export async function read_settings(pass) {
     if (fs.existsSync(settings_path) && fs.statSync(settings_path).size > 0) {
         let cfg = await settings.read(()=>({
             location: 'worldwide',
-            ai: [
-                {name: 'bing', use: true},
-                {name: 'claude', use: true},
-                {name: 'gpt', use: true},
-                {name: 'you', use: true},
-            ],
         }));
         if (!cfg)
             throw Object.assign(new Error('Enter encryption password'), {code: 401});

@@ -3,6 +3,7 @@ import {get_jobs_db, get_vacancy_db, safely_wait_idle, safely_wait_selector, upd
 import {read_settings} from "../backend/utils.js";
 import {Awaiter, join_mkfile, Settings, sleep} from "oshi_utils";
 import os from "os";
+import {analyze} from "../backend/report_server.js";
 
 const settings = new Settings(join_mkfile(os.homedir(), 'job_search', 'scrape_worker.json')).use_fresh(200);
 
@@ -106,6 +107,7 @@ async function process_job(job) {
                     html_content,
                 });
                 console.debug('saved', job_id);
+                analyze(await db.findOneAsync({job_id: +job_id}));
             } else {
                 console.debug('skipping as no API interception found', job_id);
             }

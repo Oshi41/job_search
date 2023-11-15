@@ -5,21 +5,48 @@ import os from "os";
 
 /** @type {Page}*/
 let page;
-const settings = new Settings(join_mkfile(os.homedir(), 'job_search', 'ai_worker.json')).use_fresh(200);
-const auth_awaiter = new Awaiter(), resp_awaiter = new Awaiter();
+const resp_awaiter = new Awaiter();
 
-async function wait_for_auth(page, timeout) {
-    let handled = false;
-    setTimeout(() => {
-        if (!handled)
-            throw new Error('auth_timeout');
-    }, timeout);
+function use_reauth(page) {
+    const awaiter = new Awaiter();
+    let authorized = false, is_manual_auth = false;
 
-    while (true) {
-        if (await auth_awaiter.wait_for()) {
-            handled = true;
-            return true;
+    page.on('response', async resp => {
+        let url = resp.url();
+        if (url?.includes?.('/authenticate')) {
+            try {
+                let json_resp = await resp.json();
+                authorized = !!json_resp?.data?.user;
+                awaiter.resolve(authorized);
+            } catch (e) {
+                // ignored
+            }
         }
+    });
+
+    let _goto = page.goto.bind(page);
+    page.goto = async function (url, arg) {
+        let res = await _goto(url, arg);
+
+        if (!is_manual_auth && !authorized) {
+            is_manual_auth = true;
+            page.evaluate('alert("You have 120s to authorize by yourself")');
+            let _awaiter = new Awaiter();
+
+            // need to be awaited ib background
+            (async () => {
+                while (!authorized)
+                    await awaiter.wait_for();
+
+                // finished manual auth
+                is_manual_auth = false;
+                _awaiter.resolve(await page.goto(url, arg));
+            })();
+
+            return await _awaiter.wait_for(120_000);
+        }
+
+        return res;
     }
 }
 
@@ -31,6 +58,7 @@ export async function ask(question) {
     if (!page) {
         let browser = await edge_browser();
         page = await browser.newPage();
+        use_reauth(page);
         let client = await page.target().createCDPSession();
         await client.send('Network.enable');
 
@@ -61,31 +89,13 @@ export async function ask(question) {
             }
         });
 
-        page.on('response', async resp => {
-            let url = resp?.url?.();
-            if (url?.includes?.('sessions/authenticate')) {
-                try {
-                    let json_resp = await resp.json();
-                    settings.you_auth = !!json_resp?.data?.user;
-                    auth_awaiter.resolve(settings.you_auth);
-                } catch (e) {
-                    // ignored
-                }
-            }
-        });
-
-        await page.goto('https://you.com/', {waitUntil: 'load'});
+        await page.goto('https://you.com/', {waitUntil: 'networkidle0'});
 
         selector = '.modal-close';
         if (await safely_wait_selector(page, selector, 2)) {
             console.debug('[you] closing modal')
             let btn = await page.$(selector);
             await btn.close();
-        }
-
-        if (!settings.you_auth) {
-            await page.evaluate('alert("You need to authenticate by yourself within 120s")');
-            await wait_for_auth(page, 120_000);
         }
 
         selector = '#search-input-textarea';
@@ -114,3 +124,4 @@ export async function ask(question) {
         return raw_resp;
     }
 }
+
