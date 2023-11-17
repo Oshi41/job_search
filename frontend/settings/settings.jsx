@@ -37,11 +37,11 @@ const {
  * @constructor
  */
 window.SettingsView = function ({add_snackbar}) {
+    const {CustomTable: Table, use_custom_table} = window;
     const [cfg, set_cfg] = useState({});
     const [login, set_login] = useState('');
     const [pass, set_pass] = useState('');
     const [search_temp, set_search_temp] = useState('');
-    const [location, set_location] = useState('')
     const [prompt, set_prompt] = useState('')
     const [searches, set_searches] = useState([]);
     const [enc_pass, set_enc_pass] = useState('');
@@ -49,11 +49,7 @@ window.SettingsView = function ({add_snackbar}) {
     const [ai_cfg, set_ai_cfg] = useState([]);
     const [loading, set_loading] = useState(false);
 
-    const on_add_search = useCallback(() => {
-        set_searches(prevState => [...prevState, search_temp]);
-        set_search_temp('');
-    }, [search_temp]);
-
+    const [search_item_edit, set_search_item_edit] = useState(null);
     const get_settings = useCallback(async () => {
         try {
             let q = enc_pass ? '?pass=' + enc_pass : '';
@@ -74,7 +70,6 @@ window.SettingsView = function ({add_snackbar}) {
         let config = cfg || {};
         set_login(config.login || '');
         set_pass(config.pass || '');
-        set_location(config.location || '');
         set_searches(config.searches || []);
         set_prompt(config.prompt || '');
         let src = config.ai || [];
@@ -142,7 +137,6 @@ window.SettingsView = function ({add_snackbar}) {
         let cfg = {
             login,
             pass,
-            location,
             searches,
             prompt,
             ai: ai_cfg.map(x => ({name: x.name, use: x.use})),
@@ -159,11 +153,65 @@ window.SettingsView = function ({add_snackbar}) {
         } finally {
             set_loading(false);
         }
-    }, [login, pass, location, searches, prompt]);
+    }, [login, pass, searches, prompt]);
 
     const skeleton = useMemo(() => <Skeleton height={48} width={400}/>, []);
+    const columns = useMemo(()=>{
+        return [
+            {
+                id: 'search',
+                header: 'Search keywords',
+                cell: x => x.search,
+            },
+            {
+                id: 'location',
+                header: 'Job location',
+                cell: x => x.location,
+            },
+            {
+                id: 'count',
+                header: 'Max jobs count',
+                cell: x => x.count,
+            },
+        ];
+    }, []);
+    let table_props = use_custom_table({
+        columns,
+        data: searches,
+    });
 
     return <Paper elevation={3} sx={{padding: '10px'}}>
+        <Modal open={!!search_item_edit}
+               onClose={() => set_search_item_edit(null)}>
+            <Card sx={{
+                margin: '10%', maxHeight: '60%',
+                overflowY: 'auto', overflowX: 'hidden'
+            }}>
+                <h1>Add new LinkedIN search</h1>
+                <TextField label='Search keywords'
+                           value={search_item_edit && search_item_edit.search}
+                           onChange={e => set_search_item_edit(p => Object.assign(p || {},
+                               {search: e.target.text}))}
+                           fullWidth/>
+                <TextField label='Location'
+                           value={search_item_edit && search_item_edit.location}
+                           onChange={e => set_search_item_edit(p => Object.assign(p || {},
+                               {location: e.target.text}))}
+                           fullWidth/>
+                <TextField label='Max jobs per search'
+                           inputProps={{inputMode: 'numeric', pattern: '[0-9]*'}}
+                           value={search_item_edit && search_item_edit.count}
+                           onChange={e => set_search_item_edit(p => Object.assign(p || {},
+                               {count: +e.target.text}))}
+                           fullWidth/>
+                <TextField/>
+
+                <Button onCLick={()=>{
+
+                }}>Save</Button>
+            </Card>
+        </Modal>
+
         <Stack direction='column' gap='12px'>
             <h1>Settings</h1>
             <h3>Linkedin settings</h3>
@@ -182,43 +230,13 @@ window.SettingsView = function ({add_snackbar}) {
                 skeleton,
                 skeleton,
             ]}
-            <h3>Searches</h3>
-            {!loading && [
-                <TextField label='Linkedn job location'
-                           value={location}
-                           sx={{alignSelf: 'flex-start', width: '650px'}}
-                           onChange={e => set_location(e.target.value)}
-                />,
-                <TextField label='Insert search for LinkedIn'
-                           value={search_temp}
-                           onChange={e => set_search_temp(e.target.value)}
-                           onKeyDown={e => {
-                               if (e.key == 'Enter')
-                                   on_add_search();
-                           }}
-                           sx={{alignSelf: 'flex-start', width: '650px'}}
-                           InputProps={{
-                               endAdornment: <IconButton onClick={on_add_search}><Icon>check</Icon></IconButton>,
-                           }}
-                />
-            ]}
-            {loading && [
-                skeleton,
-                skeleton,
-            ]}
-            <ul>
-                {searches.map(x => <li>
-                    <Stack direction='row' sx={{alignItems: 'center'}}>
-                        {loading && skeleton}
-                        {!loading && [
-                            <IconButton onClick={() => set_searches(prev => prev.filter(p => p != x))}>
-                                <Icon>close</Icon>
-                            </IconButton>,
-                            <Typography>{x}</Typography>,
-                        ]}
-                    </Stack>
-                </li>)}
-            </ul>
+
+            <Stack direction='row'>
+                <h3 style={{width: '100%'}}>Searches</h3>
+                <Button variant='contained'
+                        onClick={()=>set_search_item_edit({})}>Add</Button>
+            </Stack>
+            <Table {...table_props}/>
             <h3>Additional AI prompt</h3>
             {!loading && <TextareaAutosize minRows={3}
                                            value={prompt}

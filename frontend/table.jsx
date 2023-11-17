@@ -39,6 +39,116 @@ const {
 
 const to_arr = obj => Array.isArray(obj) ? obj : [obj];
 
+window.use_custom_table = ({columns, data: _data, total, request_data}) => {
+    const [sort, set_sort] = useState({});
+    const [filter, set_filter] = useState({});
+    const [page, set_page] = useState(0);
+    const [per_page, set_per_page] = useState(10);
+    const [selected, set_selected] = useState(null);
+    const [loading, set_loading] = useState(false);
+    const on_update = useCallback((opts) => {
+        let {
+            filter: _filter,
+            sort: _sort,
+            page: _page,
+            per_page: _per_page,
+            selected: _selected,
+        } = opts;
+        if (_filter)
+            set_filter(_filter);
+        if (_sort)
+            set_sort(_sort);
+        if (Number.isInteger(_page))
+            set_page(_page);
+        if (Number.isInteger(_per_page))
+            set_per_page(_per_page);
+        if (_selected)
+            set_selected(_selected);
+    }, []);
+    const [data, set_data] = useState([]);
+    const request_client_data = useCallback(() => {
+        const sort_by = (l, r) => {
+            for (let [key, direction] of Object.entries(sort)) {
+                let left, right;
+                if (direction < 0) {
+                    right = l[key];
+                    left = r[key];
+                } else {
+                    left = l[key];
+                    right = r[key];
+                }
+
+                let diff = 0;
+                if (left && left.localCompare)
+                    diff = left.localCompare(right);
+                else
+                    diff = +(left - right);
+                if (diff)
+                    return diff;
+            }
+            return 0;
+        };
+        const filter_by = x => {
+            for (let [key, filter_value] of Object.entries(filter)) {
+                let src = (x[key] + '').toLowerCase();
+                if (filter_value instanceof RegExp && filter_value.test(src))
+                    return true;
+                if (typeof filter_value == 'string' && src.includes(filter_value.toLowerCase()))
+                    return true;
+                if (src == filter_value)
+                    return true;
+                return !filter_value;
+            }
+            return true;
+        };
+        /** @type {Array} */
+        let result = _data.sort(sort_by).filter(filter_by);
+        result = result.slice(page * per_page, per_page);
+        set_data(result);
+    }, [filter, sort, page, per_page, _data]);
+
+    // copy data
+    useEffect(() => {
+        set_data([..._data]);
+    }, [_data]);
+
+    // client side sorting
+    useEffect(() => {
+        if (!request_data)
+            request_client_data();
+    }, [request_client_data]);
+
+    // request server side data
+    useEffect(() => {
+        async function load() {
+            if (request_data) {
+                try {
+                    set_loading(true);
+                    await request_data({filter, sort, page, per_page});
+                } finally {
+                    set_loading(false);
+                }
+            }
+        }
+        load();
+    }, [filter, sort, page, per_page]);
+
+    return useMemo(() => ({
+        columns,
+        data,
+        sort,
+        set_sort,
+        filter,
+        set_filter,
+        page,
+        per_page,
+        loading,
+        selected,
+        on_update,
+        total: Number.isInteger(total) || data.length || 0,
+    }), [columns, data, sort, set_sort, filter, set_filter, page, per_page, loading, selected, on_update, total]);
+};
+
 window.CustomTable = ({columns, data, sort, filter, page, page_size, on_update, loading, total, selected}) => {
     let options = [5, 10, 25, 50, {label: 'All', value: Number.MAX_VALUE}];
 
@@ -60,7 +170,7 @@ window.CustomTable = ({columns, data, sort, filter, page, page_size, on_update, 
                                     </MenuItem>
                                 });
                             let default_value = Object.values(x.select || {})[0];
-                            let selected_value = !select_values.length ? filter[id] : Object.values(x.select).find(s=>{
+                            let selected_value = !select_values.length ? filter[id] : Object.values(x.select).find(s => {
                                 if (typeof s == 'string')
                                     return filter[id] === s;
                                 if (s.no_search)
