@@ -130,6 +130,7 @@ window.use_custom_table = ({columns, data: _data, total, request_data}) => {
                 }
             }
         }
+
         load();
     }, [filter, sort, page, page_size]);
 
@@ -148,6 +149,45 @@ window.use_custom_table = ({columns, data: _data, total, request_data}) => {
         total: Number.isInteger(total) || data.length || 0,
     }), [columns, data, sort, set_sort, filter, set_filter, page, page_size, loading, selected, on_update, total]);
 };
+
+/**
+ * @returns {[boolean,((function(*): void)|*)]}
+ */
+window.use_increment_loading = function () {
+    const [l, set_l] = useState(0);
+    const set_loading = useCallback((is_loading) => {
+        set_l(prev => {
+            return is_loading ? prev + 1 : prev - 1;
+        });
+    }, [set_l]);
+    return useMemo(() => [l > 0, set_loading], [l, set_loading]);
+};
+
+/**
+ * @param fn {()=>Promise}
+ * @param set_loading {function}
+ * @param add_snackbar {function}
+ * @param header {string}
+ * @param deps {Array}
+ * @returns {(function(...[*]): void)|*}
+ */
+window.use_async_callback = (fn, {set_loading, add_snackbar, err_hdr}, deps) => {
+    return useCallback((...args) => {
+        async function load() {
+            try {
+                set_loading(true);
+                await fn(...args);
+            } catch (e) {
+                console.error(err_hdr, e);
+                add_snackbar(err_hdr+' '+e.message, 'error');
+            } finally {
+                set_loading(false);
+            }
+        }
+
+        load();
+    }, [...deps, add_snackbar, set_loading, err_hdr]);
+}
 
 window.CustomTable = ({columns, data, sort, filter, page, page_size, on_update, loading, total, selected}) => {
     let options = [5, 10, 25, 50, {label: 'All', value: Number.MAX_VALUE}];
@@ -254,4 +294,24 @@ window.CustomTable = ({columns, data, sort, filter, page, page_size, on_update, 
             </TableFooter>
         </Table>
     </TableContainer>
+};
+
+window.CustomTabs = function ({tabs, tab_props}) {
+    const [tab, set_tab] = useState(0);
+    const _tabs = tabs || [];
+    const headers = _tabs.map(x => x.header).map((x, i) => <Tab label={x} value={i} key={i}/>);
+    const contents = _tabs.map((x, i) => {
+        let opts = {
+            ...tab_props,
+            visible: i == tab,
+        };
+        return x.content(opts);
+    });
+
+    return [
+        <Tabs value={tab} onChange={(e, i) => set_tab(i)}>
+            {headers}
+        </Tabs>,
+        contents[tab],
+    ];
 }

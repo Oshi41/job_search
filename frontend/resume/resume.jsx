@@ -28,97 +28,9 @@ const {
     Tabs,
     TextareaAutosize,
     FormControlLabel,
+    MenuItem,
+    InputLabel,
 } = MaterialUI;
-
-function edit_resume({add_snackbar, set_loading, visible}) {
-    const [data, set_data] = useState({});
-    const [tex, set_tex] = useState(null);
-    const [pdf, set_pdf] = useState(null);
-    const [text, set_text] = useState(null);
-    const [show_preview, set_show_preview] = useState(false);
-
-    const load_common_resume = useCallback(async () => {
-        try {
-            set_loading(true);
-            let res = await fetch('/resume');
-            let _data = await res.json();
-            set_data(_data);
-        } catch (e) {
-            add_snackbar('Error during common fetch resume: ' + e.message);
-        } finally {
-            set_loading(false);
-        }
-    }, [set_loading]);
-    const on_switch = useCallback(async () => {
-        let is_tex = !show_preview;
-        set_show_preview(p => !p);
-        if (data.tex != tex && is_tex) {
-            set_loading(true);
-            try {
-                let res = await fetch('/preview', {
-                    method: 'POST',
-                    body: tex,
-                });
-                let _data = await res.json();
-                set_data(_data);
-            } catch (e) {
-                add_snackbar('Error during preview: ' + e.message);
-            } finally {
-                set_loading(false);
-            }
-        }
-    }, [data, tex, show_preview, set_loading]);
-
-    useEffect(() => {
-        if (visible)
-            load_common_resume();
-    }, [visible]);
-    useEffect(() => {
-        function set_val(fn, path) {
-            let paths = path.split('.');
-            let value = data;
-            while (paths.length) {
-                if (!value)
-                    break;
-                value = value[paths.shift()];
-            }
-            fn(value || null);
-        }
-
-        set_val(set_pdf, 'resume.pdf');
-        set_val(set_tex, 'resume.tex');
-        set_val(set_text, 'resume.text');
-    }, [data]);
-
-    return <Stack gap='8px' direction='column'>
-        <Stack direction='row' gap='8px'>
-            <h1 style={{width: '100%'}}>Using resume</h1>
-            <FormControlLabel control={<Switch onChange={e => on_switch()}
-                                               value={show_preview}/>}
-                              label={!show_preview ? 'Show preview' : 'Show TeX'}
-                              labelPlacement='end'
-            />
-        </Stack>
-
-        {!show_preview && [
-            <h3>TeX</h3>,
-            <TextareaAutosize
-                minRows={40}
-                value={tex}
-                onChange={(e) => set_tex(e.target.value)}
-            />,
-        ]}
-
-        {show_preview && [
-            <h3>PDF</h3>,
-            <TextareaAutosize
-                minRows={40}
-                value={text}
-                readOnly
-            />,
-        ]}
-    </Stack>;
-}
 
 const resume_obj_keys = 'name title email location phone ai_message links photo cv_text cv_footer'.split(' ');
 
@@ -138,7 +50,15 @@ async function file2base64(file) {
     });
 }
 
-function create_resume({add_snackbar, visible, set_loading}) {
+export function get(value, path){
+    let paths = path.split('.');
+    let res = value;
+    while (paths.length && res)
+        res = res[paths.shift()];
+    return res;
+}
+
+function resume_settings({add_snackbar, visible, set_loading}) {
     const [orig, set_orig] = useState({});
 
     const [data, set_data] = useState({});
@@ -273,7 +193,7 @@ function create_resume({add_snackbar, visible, set_loading}) {
             }
         }
 
-        load().finally(x=>load_from_srv());
+        load().finally(x => load_from_srv());
     }, [add_snackbar, set_loading, to_apply, load_from_srv]);
     const img_ctrl = useMemo(() => {
         if (!data.photo)
@@ -421,6 +341,144 @@ function create_resume({add_snackbar, visible, set_loading}) {
     </Stack>;
 }
 
+function generate_resume({add_snackbar, set_loading, visible}) {
+    const [data, set_data] = useState({})
+    const [selected, set_selected] = useState('common');
+    const [open, set_open] = useState(false);
+    const [to_generate, set_to_generate] = useState('');
+    const [to_generate_force, set_to_generate_force] = useState(false);
+    const [to_generate_err, set_to_generate_err] = useState('');
+
+    const options = useMemo(() => {
+        let list = Object.keys(data).map(x => Number.isInteger(+x) ? +x : 'common');
+        return list.map(x => <MenuItem key={x} value={x}>{x}</MenuItem>);
+    }, [data]);
+    const load_existing_resumes = useCallback((s_param) => {
+        async function load() {
+            set_loading(true);
+            try {
+                let resp = await fetch('/resumes' + s_param.toString());
+                let _data = await resp.json();
+                set_data(prev => {
+                    let res = {...prev};
+                    for (let key of Object.keys(_data)) {
+                        let src = data[key] || {};
+                        let new_val = _data[key] || {};
+                        res[key] = Object.assign(src, new_val);
+                    }
+                    return res;
+                });
+            } catch (e) {
+                console.error('Error during existing resumes loading:', e);
+                add_snackbar('Error during existing resumes loading: ' + e.message, 'error');
+            } finally {
+                set_loading(false);
+            }
+        };
+        load();
+    }, [add_snackbar, set_loading]);
+    const generate_request = useCallback(() => {
+        async function load() {
+            set_loading(true);
+            try {
+                await fetch('/generate_resume?force='+to_generate_force, {
+                    method: 'POST',
+                    body: to_generate
+                });
+                add_snackbar('Successfully generated resume');
+
+                let url = new URL('http://google.com');
+                url.searchParams.set('percentage', to_generate);
+                url.searchParams.set('pdf', true);
+                load_existing_resumes(url.search);
+            } catch (e) {
+                console.error('Error during resume generation:', e);
+                add_snackbar('Error during resume generation: ' + e.message, 'error');
+            } finally {
+                set_loading(false);
+            }
+        }
+
+        load();
+    }, [to_generate, to_generate_force]);
+    useEffect(() => {
+        if (visible) {
+            let url = new URL('http://google.com');
+            url.searchParams.set('all', true);
+            load_existing_resumes(url.search);
+        }
+    }, [visible]);
+
+    return <Stack gap='8px' direction='column'>
+        <Modal open={open} onClose={() => set_open(false)}>
+            <Card sx={{
+                width: '40%',
+                margin: 'auto',
+                display: 'block',
+                marginTop: '10%',
+                padding: '24px',
+            }}>
+                <Stack gap='8px' direction='column'>
+                    <h1>Generate resume</h1>
+                    <InputLabel>You need to select AI compatibility percentage. Use 'common' to generate resume without
+                        AI compatibility message</InputLabel>
+                    <TextField label='Percentage'
+                               error={!!to_generate_err}
+                               helperText={to_generate_err}
+                               value={to_generate}
+                               onChange={e => {
+                                   set_to_generate(e.target.value);
+                                   set_to_generate_err('');
+                               }}
+                    />
+                    <FormControlLabel control={<Checkbox onChange={e => set_to_generate_force(e.target.checked)}
+                                                         value={to_generate_force}/>}
+                                      label='Force regeneration'
+                                      labelPlacement='end'
+                    />
+                    <Button sx={{width: '100px'}}
+                            disabled={!to_generate || !!to_generate_err}
+                            onClick={() => {
+                                let number = +to_generate;
+                                if (Number.isInteger(number)) {
+                                    if (number < 0)
+                                        return set_to_generate_err('Value cannot be smaller than 0');
+                                    if (number > 100)
+                                        return set_to_generate_err('Value cannot be bugger than 100');
+                                } else if (to_generate == 'common') {
+                                    // ignore
+                                } else {
+                                    return set_to_generate_err('Enter value in range 0..100 or "common"');
+                                }
+                                generate_request();
+                                set_to_generate_err('');
+                            }} variant='outlined'>Generate</Button>
+                </Stack>
+            </Card>
+        </Modal>
+        <h1>Select compatibility</h1>
+        <Button sx={{width: '100px'}} onClick={() => set_open(true)} variant='outlined'>Generate</Button>
+        <Select label='Percentage'
+                value={selected}
+                onChange={e => set_selected(e.target.value)}>
+            {options}
+        </Select>
+
+        {selected && data && [
+            <a href={get(data, selected+'.pdf.folder')}>Open in folder</a>,
+            <embed
+                src={'/resume_preview?percentage='+selected}
+                type="application/pdf"
+                frameBorder="0"
+                scrolling='disable'
+                height="10000px"
+                width="100%">
+            </embed>,
+        ]}
+
+    </Stack>;
+}
+
 window.ResumeView = function (opts) {
     const [loading, set_loading] = useState(false);
     const [tab, set_tab] = useState(0);
@@ -428,18 +486,18 @@ window.ResumeView = function (opts) {
     let tab_opt = {...opts, loading, set_loading};
     const tabs = [
         {
-            title: 'Create',
-            content: create_resume({...tab_opt, visible: tab === 0}),
+            title: 'Settings',
+            content: resume_settings({...tab_opt, visible: tab === 0}),
         },
         {
-            title: 'Edit',
-            content: edit_resume({...tab_opt, visible: tab === 1}),
+            title: 'Generate',
+            content: generate_resume({...tab_opt, visible: tab === 1}),
         },
-    ]
+    ];
     const tab_headers = useMemo(() => {
         return tabs.map((value, index) => <Tab label={value.title} value={index} key={index}/>);
     }, [tabs]);
-    const tab_content = useMemo(() => tabs[tab].content, [tabs, tab]);
+    const tab_content = useMemo(() => get(tabs, tab+'.content'), [tabs, tab]);
 
     return <Stack gap='8px' direction='column'>
         <Modal open={loading}>

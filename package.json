@@ -12,7 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "commander": "^11.1.0",
-    "oshi_utils": "1.0.38",
+    "oshi_utils": "1.0.40",
     "html-to-text": "^9.0.5",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",

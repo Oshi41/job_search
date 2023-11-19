@@ -213,6 +213,14 @@ export function throw_err(message, code) {
     throw Object.assign(new Error(message), {code});
 }
 
+export function get(value, path){
+    let paths = path.split('.');
+    let res = value;
+    while (paths.length && res)
+        res = res[paths.shift()];
+    return res;
+}
+
 /**
  * @typedef {object} Vacancy
  * @property {URL} link - Job link
