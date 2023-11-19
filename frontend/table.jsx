@@ -43,7 +43,7 @@ window.use_custom_table = ({columns, data: _data, total, request_data}) => {
     const [sort, set_sort] = useState({});
     const [filter, set_filter] = useState({});
     const [page, set_page] = useState(0);
-    const [per_page, set_per_page] = useState(10);
+    const [page_size, set_page_size] = useState(10);
     const [selected, set_selected] = useState(null);
     const [loading, set_loading] = useState(false);
     const on_update = useCallback((opts) => {
@@ -51,7 +51,7 @@ window.use_custom_table = ({columns, data: _data, total, request_data}) => {
             filter: _filter,
             sort: _sort,
             page: _page,
-            per_page: _per_page,
+            page_size: _page_size,
             selected: _selected,
         } = opts;
         if (_filter)
@@ -60,8 +60,8 @@ window.use_custom_table = ({columns, data: _data, total, request_data}) => {
             set_sort(_sort);
         if (Number.isInteger(_page))
             set_page(_page);
-        if (Number.isInteger(_per_page))
-            set_per_page(_per_page);
+        if (Number.isInteger(_page_size))
+            set_page_size(_page_size);
         if (_selected)
             set_selected(_selected);
     }, []);
@@ -103,9 +103,9 @@ window.use_custom_table = ({columns, data: _data, total, request_data}) => {
         };
         /** @type {Array} */
         let result = _data.sort(sort_by).filter(filter_by);
-        result = result.slice(page * per_page, per_page);
+        result = result.slice(page * page_size, page_size);
         set_data(result);
-    }, [filter, sort, page, per_page, _data]);
+    }, [filter, sort, page, page_size, _data]);
 
     // copy data
     useEffect(() => {
@@ -124,14 +124,14 @@ window.use_custom_table = ({columns, data: _data, total, request_data}) => {
             if (request_data) {
                 try {
                     set_loading(true);
-                    await request_data({filter, sort, page, per_page});
+                    await request_data({filter, sort, page, per_page: page_size});
                 } finally {
                     set_loading(false);
                 }
             }
         }
         load();
-    }, [filter, sort, page, per_page]);
+    }, [filter, sort, page, page_size]);
 
     return useMemo(() => ({
         columns,
@@ -141,17 +141,16 @@ window.use_custom_table = ({columns, data: _data, total, request_data}) => {
         filter,
         set_filter,
         page,
-        per_page,
+        page_size,
         loading,
         selected,
         on_update,
         total: Number.isInteger(total) || data.length || 0,
-    }), [columns, data, sort, set_sort, filter, set_filter, page, per_page, loading, selected, on_update, total]);
+    }), [columns, data, sort, set_sort, filter, set_filter, page, page_size, loading, selected, on_update, total]);
 };
 
 window.CustomTable = ({columns, data, sort, filter, page, page_size, on_update, loading, total, selected}) => {
     let options = [5, 10, 25, 50, {label: 'All', value: Number.MAX_VALUE}];
-
 
     return <TableContainer component={Paper}>
         <Table>

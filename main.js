@@ -26,8 +26,9 @@ program
     .description('Run main server')
     .action(async () => {
         const app = express();
-        app.use(express.json());
-        app.use(express.text());
+        const opts = {limit: '50mb'};
+        app.use(express.json(opts));
+        app.use(express.text(opts));
         app.use(express.static(path.resolve('frontend'))); // HTML files
 
         let dir = path.resolve('backend');

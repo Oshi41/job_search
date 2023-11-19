@@ -205,6 +205,15 @@ export function handler(fn) {
 }
 
 /**
+ * Throws error with special code
+ * @param message {string}
+ * @param code {number}
+ */
+export function throw_err(message, code) {
+    throw Object.assign(new Error(message), {code});
+}
+
+/**
  * @typedef {object} Vacancy
  * @property {URL} link - Job link
  * @property {Date} insert_time - DB insertion time

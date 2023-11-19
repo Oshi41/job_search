@@ -37,7 +37,7 @@ function install() {
 install();
 
 function MainControl() {
-    const {VacancyView, SettingsView, ScrapeView} = window;
+    const {VacancyView, SettingsView, ScrapeView, ResumeView} = window;
     const [snackbars, set_snackbars] = useState([]);
     /** @type {(function(string, 'error' | 'success' | 'warning' | 'info'): void)|*}*/
     const add_snackbar = useCallback((text, severity = 'info') => {
@@ -54,7 +54,7 @@ function MainControl() {
 
     let tabs = {
         'Vacancies': <VacancyView {...props}/>,
-        'Scrape': <ScrapeView {...props}/>,
+        'Resumes': <ResumeView {...props}/>,
         'Settings': <SettingsView {...props}/>,
     };
     const [tab, set_tab] = useState(0);

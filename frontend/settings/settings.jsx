@@ -156,7 +156,7 @@ window.SettingsView = function ({add_snackbar}) {
     }, [login, pass, searches, prompt]);
 
     const skeleton = useMemo(() => <Skeleton height={48} width={400}/>, []);
-    const columns = useMemo(()=>{
+    const columns = useMemo(() => {
         return [
             {
                 id: 'search',
@@ -183,32 +183,36 @@ window.SettingsView = function ({add_snackbar}) {
     return <Paper elevation={3} sx={{padding: '10px'}}>
         <Modal open={!!search_item_edit}
                onClose={() => set_search_item_edit(null)}>
-            <Card sx={{
-                margin: '10%', maxHeight: '60%',
-                overflowY: 'auto', overflowX: 'hidden'
-            }}>
-                <h1>Add new LinkedIN search</h1>
-                <TextField label='Search keywords'
-                           value={search_item_edit && search_item_edit.search}
-                           onChange={e => set_search_item_edit(p => Object.assign(p || {},
-                               {search: e.target.text}))}
-                           fullWidth/>
-                <TextField label='Location'
-                           value={search_item_edit && search_item_edit.location}
-                           onChange={e => set_search_item_edit(p => Object.assign(p || {},
-                               {location: e.target.text}))}
-                           fullWidth/>
-                <TextField label='Max jobs per search'
-                           inputProps={{inputMode: 'numeric', pattern: '[0-9]*'}}
-                           value={search_item_edit && search_item_edit.count}
-                           onChange={e => set_search_item_edit(p => Object.assign(p || {},
-                               {count: +e.target.text}))}
-                           fullWidth/>
-                <TextField/>
-
-                <Button onCLick={()=>{
-
-                }}>Save</Button>
+            <Card sx={{padding: '24px', marginTop: '10%', marginLeft: '10%', marginRight: '10%'}}>
+                <Stack gap='8px' direction='column'>
+                    <h1>Add new LinkedIn search</h1>
+                    <TextField label='Search keywords'
+                               value={search_item_edit && search_item_edit.search}
+                               onChange={e => set_search_item_edit({
+                                   ...search_item_edit,
+                                   search: e.target.value,
+                               })}
+                               fullWidth/>
+                    <TextField label='Location'
+                               value={search_item_edit && search_item_edit.location}
+                               onChange={e => set_search_item_edit({
+                                   ...search_item_edit,
+                                   location: e.target.value,
+                               })}
+                               fullWidth/>
+                    <TextField label='Max jobs per search'
+                               inputProps={{inputMode: 'numeric', pattern: '[0-9]*'}}
+                               value={search_item_edit && search_item_edit.count}
+                               onChange={e => set_search_item_edit({
+                                   ...search_item_edit,
+                                   count: +e.target.value,
+                               })}
+                               fullWidth/>
+                    <Button variant='contained' onClick={() => {
+                        set_searches(p=>[...p, search_item_edit]);
+                        set_search_item_edit(null);
+                    }}>Save</Button>
+                </Stack>
             </Card>
         </Modal>
 
@@ -234,7 +238,7 @@ window.SettingsView = function ({add_snackbar}) {
             <Stack direction='row'>
                 <h3 style={{width: '100%'}}>Searches</h3>
                 <Button variant='contained'
-                        onClick={()=>set_search_item_edit({})}>Add</Button>
+                        onClick={() => set_search_item_edit({})}>Add</Button>
             </Stack>
             <Table {...table_props}/>
             <h3>Additional AI prompt</h3>

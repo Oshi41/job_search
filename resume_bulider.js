@@ -164,7 +164,7 @@ async function _build_resume(to, percentage = Number.NaN) {
     let tex_content = fs.readFileSync(tex_path, 'utf-8');
     if (Number.isInteger(percentage)) {
         tex_content = tex_content.replace('% insert line here',
-            `\\underline{Bing AI thinks this vacancy suits us ${percentage}\\%}`);
+            `\\underline{AI thinks this vacancy suits us ${percentage}\\%}`);
     }
     let temp_tex_file = path.resolve(tex_path, '..', '_temp.tex');
     try {
@@ -244,5 +244,3 @@ export async function build_resume(percentage = Number.NaN) {
 
     return result_pdf;
 }
-
-build_resume()
