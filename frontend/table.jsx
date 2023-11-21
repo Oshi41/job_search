@@ -179,7 +179,7 @@ window.use_async_callback = (fn, {set_loading, add_snackbar, err_hdr}, deps) => 
                 await fn(...args);
             } catch (e) {
                 console.error(err_hdr, e);
-                add_snackbar(err_hdr+' '+e.message, 'error');
+                add_snackbar(err_hdr + ' ' + e.message, 'error');
             } finally {
                 set_loading(false);
             }
@@ -294,6 +294,15 @@ window.CustomTable = ({columns, data, sort, filter, page, page_size, on_update, 
             </TableFooter>
         </Table>
     </TableContainer>
+};
+
+// TODO implement
+window.use_location = function () {
+    const {history, location: {hash, href, assign}} = window;
+    const push = useCallback((str) => {
+        let url = new URL(href);
+
+    }, [href, history]);
 };
 
 window.CustomTabs = function ({tabs, tab_props}) {

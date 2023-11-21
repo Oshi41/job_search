@@ -1,4 +1,4 @@
-import {Awaiter, join_mkfile, Settings} from "oshi_utils";
+import {Awaiter, join_mkfile, Settings, sleep} from "oshi_utils";
 import {read_settings} from "../backend/utils.js";
 import {edge_browser, use_job_info_cb, linkedin_auth, use_reauth, Worker} from "./utils.js";
 import {get_jobs_db, get_vacancy_db, safely_wait_selector, update_one} from "../utils.js";
@@ -6,36 +6,18 @@ import os from "os";
 
 const settings = new Settings(join_mkfile(os.homedir(), 'job_search', 'scrape_worker.json')).use_fresh(200);
 
-async function read_content(page, selector) {
-    let res = await page.$eval(selector, elem => {
-        return Array.from(elem.childNodes.values()).map(elem => {
-            switch (elem.nodeType) {
-                case Node.TEXT_NODE:
-                    if (elem.tagName == 'LI') {
-                        return '* ' + elem.textContent;
-                    }
-                    return elem.textContent;
-                default:
-                    return elem.innerText;
-            }
-        })
-    });
-    // read all vacancy text here
-    let text = res.slice(1).join('\n').trim();
-    // trim language dependant rows here (to avoid other language injection)
-    text = text.split('\n').slice(1, -1).join('\n');
-    return text;
-}
-
 async function process_single_item({job_id, _id}) {
     let cfg = await read_settings();
     let link = 'https://www.linkedin.com/jobs/view/' + job_id;
     let page = await (await edge_browser()).newPage();
-    this.finally(() => page.close());
+    this.finally(async () => {
+        await sleep(200);
+        page?.close();
+    });
 
     let awaiter = new Awaiter();
     use_reauth(page, settings, cfg);
-    use_job_info_cb(page, v=>awaiter.resolve(v));
+    use_job_info_cb(page, v => awaiter.resolve(v));
 
     page.goto(link);
     let vacancy = awaiter.wait_for(60_000);

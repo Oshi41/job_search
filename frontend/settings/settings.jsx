@@ -180,6 +180,10 @@ window.SettingsView = function ({add_snackbar}) {
         data: searches,
     });
 
+    function use_skeleton(ctrl) {
+        return loading ? skeleton : ctrl;
+    }
+
     return <Paper elevation={3} sx={{padding: '10px'}}>
         <Modal open={!!search_item_edit}
                onClose={() => set_search_item_edit(null)}>
@@ -209,7 +213,7 @@ window.SettingsView = function ({add_snackbar}) {
                                })}
                                fullWidth/>
                     <Button variant='contained' onClick={() => {
-                        set_searches(p=>[...p, search_item_edit]);
+                        set_searches(p => [...p, search_item_edit]);
                         set_search_item_edit(null);
                     }}>Save</Button>
                 </Stack>
@@ -219,61 +223,61 @@ window.SettingsView = function ({add_snackbar}) {
         <Stack direction='column' gap='12px'>
             <h1>Settings</h1>
             <h3>Linkedin settings</h3>
-            {!loading && [
+            {use_skeleton(
                 <TextField label='Linkedn login'
                            value={login}
                            onChange={e => set_login(e.target.value)}
-                />,
+                />)}
+            {use_skeleton(
                 <TextField label='Linkedn password'
                            value={pass}
                            type="password"
                            onChange={e => set_pass(e.target.value)}
-                />
-            ]}
-            {loading && [
-                skeleton,
-                skeleton,
-            ]}
-
-            <Stack direction='row'>
-                <h3 style={{width: '100%'}}>Searches</h3>
-                <Button variant='contained'
-                        onClick={() => set_search_item_edit({})}>Add</Button>
-            </Stack>
-            <Table {...table_props}/>
-            <h3>Additional AI prompt</h3>
-            {!loading && <TextareaAutosize minRows={3}
-                                           value={prompt}
-                                           onChange={(e) => set_prompt(e.target.value)}
-                                           placeholder="Enter additional prompt for helping AI range vacancies. Use main idea - to lower percentage if something doesn't suit you.
-Example:
-Prefer on site vacancies. Give preference to vacancies with specified salary."></TextareaAutosize>}
-            {loading && skeleton}
+                />)}
 
             <h3>AI settings</h3>
-            <Typography>Program will use any possible Ai for response in this order. You can switch off any AI that is
-                not working properly.</Typography>
-            <Stack direction='column' sx={{padding: '10px'}}>
-                {ai_cfg.map(x => {
-                    const on_click = (e) => {
-                        x.use = e.target.checked;
-                        set_ai_cfg([...ai_cfg]);
-                    };
-                    return <FormControlLabel label={x.label} control={
-                        <Stack direction='row' sx={{marginRight: '8px'}}>
-                            <Switch checked={x.use !== false} onChange={on_click}/>
-                            {x.icon}
-                        </Stack>
-                    }/>;
-                })}
-            </Stack>
 
-            {!loading && <Button sx={{marginTop: '5%'}}
-                                 variant='contained'
-                                 onClick={() => save_settings()}>
-                Save settings
-            </Button>}
-            {loading && <Skeleton variant='rounded'/>}
+
+
+            {/*            <Stack direction='row'>*/}
+            {/*                <h3 style={{width: '100%'}}>Searches</h3>*/}
+            {/*                <Button variant='contained'*/}
+            {/*                        onClick={() => set_search_item_edit({})}>Add</Button>*/}
+            {/*            </Stack>*/}
+            {/*            <Table {...table_props}/>*/}
+            {/*            <h3>Additional AI prompt</h3>*/}
+            {/*            {!loading && <TextareaAutosize minRows={3}*/}
+            {/*                                           value={prompt}*/}
+            {/*                                           onChange={(e) => set_prompt(e.target.value)}*/}
+            {/*                                           placeholder="Enter additional prompt for helping AI range vacancies. Use main idea - to lower percentage if something doesn't suit you.*/}
+            {/*Example:*/}
+            {/*Prefer on site vacancies. Give preference to vacancies with specified salary."></TextareaAutosize>}*/}
+            {/*            {loading && skeleton}*/}
+
+            {/*            <h3>AI settings</h3>*/}
+            {/*            <Typography>Program will use any possible Ai for response in this order. You can switch off any AI that is*/}
+            {/*                not working properly.</Typography>*/}
+            {/*            <Stack direction='column' sx={{padding: '10px'}}>*/}
+            {/*                {ai_cfg.map(x => {*/}
+            {/*                    const on_click = (e) => {*/}
+            {/*                        x.use = e.target.checked;*/}
+            {/*                        set_ai_cfg([...ai_cfg]);*/}
+            {/*                    };*/}
+            {/*                    return <FormControlLabel label={x.label} control={*/}
+            {/*                        <Stack direction='row' sx={{marginRight: '8px'}}>*/}
+            {/*                            <Switch checked={x.use !== false} onChange={on_click}/>*/}
+            {/*                            {x.icon}*/}
+            {/*                        </Stack>*/}
+            {/*                    }/>;*/}
+            {/*                })}*/}
+            {/*            </Stack>*/}
+
+            {/*            {!loading && <Button sx={{marginTop: '5%'}}*/}
+            {/*                                 variant='contained'*/}
+            {/*                                 onClick={() => save_settings()}>*/}
+            {/*                Save settings*/}
+            {/*            </Button>}*/}
+            {/*            {loading && <Skeleton variant='rounded'/>}*/}
         </Stack>
     </Paper>
 };
