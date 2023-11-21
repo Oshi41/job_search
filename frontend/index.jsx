@@ -52,14 +52,17 @@ function MainControl() {
     const tabs = [
         {
             header: 'Vacancies',
+            href: '/vacancies_tab',
             content: VacancyView,
         },
         {
             header: 'Resumes',
+            href: '/resumes_tab',
             content: ResumeMainView,
         },
         {
             header: 'Settings',
+            href: '/settings_tab',
             content: SettingsView,
         },
     ];

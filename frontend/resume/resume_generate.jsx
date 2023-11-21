@@ -44,8 +44,8 @@ function get_by_path(value, path) {
 window.ResumeGenerateView = function ({add_snackbar, set_loading, visible}) {
     const {use_async_callback} = window;
 
-    const [data, set_data] = useState({})
-    const [selected, set_selected] = useState('common');
+    const [data, set_data] = useState({});
+    const [selected, set_selected] = window.use_query_param('compat', 'common')
     const [open, set_open] = useState(false);
     const [to_generate, set_to_generate] = useState('');
     const [to_generate_force, set_to_generate_force] = useState(false);

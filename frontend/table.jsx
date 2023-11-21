@@ -39,9 +39,172 @@ const {
 
 const to_arr = obj => Array.isArray(obj) ? obj : [obj];
 
-window.use_custom_table = ({columns, data: _data, total, request_data}) => {
-    const [sort, set_sort] = useState({});
-    const [filter, set_filter] = useState({});
+/**
+ * @returns {[boolean,((function(*): void)|*)]}
+ */
+window.use_increment_loading = function () {
+    const [l, set_l] = useState(0);
+    const set_loading = useCallback((is_loading) => {
+        set_l(prev => {
+            return is_loading ? prev + 1 : prev - 1;
+        });
+    }, [set_l]);
+    return useMemo(() => [l > 0, set_loading], [l, set_loading]);
+};
+
+/**
+ * @param fn {()=>Promise}
+ * @param set_loading {function}
+ * @param add_snackbar {function}
+ * @param header {string}
+ * @param deps {Array}
+ * @returns {(function(...[*]): void)|*}
+ */
+window.use_async_callback = (fn, {set_loading, add_snackbar, err_hdr}, deps) => {
+    return useCallback((...args) => {
+        async function load() {
+            try {
+                set_loading(true);
+                await fn(...args);
+            } catch (e) {
+                console.error(err_hdr, e);
+                add_snackbar(err_hdr + ' ' + e.message, 'error');
+            } finally {
+                set_loading(false);
+            }
+        }
+
+        load();
+    }, [...deps, add_snackbar, set_loading, err_hdr]);
+}
+
+const use_debounce_effect = (fn, mls, deps) => {
+    let timer_ref = useRef(null);
+    let is_exec_ref = useRef(false);
+    useEffect(() => {
+        if (is_exec_ref.current)
+            return;
+        if (timer_ref.current)
+            clearTimeout(timer_ref.current);
+        timer_ref.current = setTimeout(async function execute() {
+            try {
+                is_exec_ref.current = true;
+                await fn();
+            } finally {
+                is_exec_ref.current = false;
+            }
+        }, mls);
+    }, deps);
+}
+
+/**
+ * @returns {[URL,(function(URL | function(URL): URL): URL)]}
+ */
+window.use_location = function () {
+    let href = window.location.toString();
+    const url = useMemo(() => new URL(href), [href]);
+    const set_url = useCallback((url_or_fn) => {
+        if (typeof url_or_fn == 'string') {
+            let str = url_or_fn;
+            url_or_fn = () => new URL(str);
+        }
+        if (url_or_fn instanceof URL) {
+            let _url = url_or_fn;
+            url_or_fn = () => _url;
+        }
+        if (typeof url_or_fn != 'function') {
+            throw new Error('url_or_fn must be a string/URL/function');
+        }
+        let copy = new URL(url.toString());
+        let updated = url_or_fn(copy) || copy;
+        if (updated.toString() != url.toString()) {
+            window.history.pushState({url: updated.toString()}, '', updated);
+        }
+        // window.location.assign(updated);
+    }, [url]);
+    return useMemo(() => [url, set_url,], [url, set_url]);
+};
+window.use_query_param = function (name, default_value) {
+    const [url, set_url] = window.use_location();
+    const value = useMemo(() => url.searchParams.get(name), [url]);
+    const set_value = useCallback((str) => set_url(prev => {
+        prev.searchParams.set(name, str);
+        return prev;
+    }), [value, url]);
+    useEffect(() => void (!value && set_value(default_value)), [default_value]);
+    return useMemo(() => [value, set_value], [value, set_value]);
+}
+window.use_tab_location = function (init_path, to_clear = []) {
+    const [url, set_url] = window.use_location();
+    const value = useMemo(() => {
+        let result = url.pathname.replace(init_path, '');
+        if (result == '/')
+            result = '';
+        return result;
+    }, [url]);
+    const set_value = useCallback(str => set_url(prev => {
+        let pathname = [init_path, str].filter(Boolean).join('');
+        prev.pathname = pathname;
+        for (let key of to_clear) {
+            prev[key] = '';
+        }
+        return prev;
+    }), [set_url]);
+    return useMemo(() => [value, set_value], [value, set_value]);
+}
+/**
+ * @param columns {Array} Table columns
+ * @param id_prefix {string}
+ * @param push2history {any} should update state from history?
+ * @returns {[{},((value: (((prevState: {}) => {}) | {})) => void), function()]}
+ */
+window.use_table_history = function (columns, id_prefix, push2history) {
+    const keys = useMemo(() => {
+        return columns.filter(x => !x.disable_filter).map(x => x.id);
+    }, [columns]);
+    const [url, set_url] = window.use_location();
+    const [obj, set_obj] = useState({});
+
+    function url2state() {
+        set_obj(prev => {
+            let changed = false;
+            for (let key of keys) {
+                const history_id = id_prefix + key;
+                if (url.searchParams.has(history_id)) {
+                    let json = url.searchParams.get(history_id);
+                    let prev_val = JSON.stringify(prev[key]);
+                    if (json != prev_val) {
+                        prev[key] = JSON.parse(json);
+                        changed = true;
+                    }
+                } else if (prev.hasOwnProperty(key)) {
+                    delete prev[key];
+                    changed = true;
+                }
+            }
+            return changed ? {...prev} : prev;
+        });
+    }
+
+    useEffect(() => void (push2history && url2state()), [push2history]);
+    useEffect(() => {
+        set_url(prev => {
+            for (let key of keys) {
+                const history_id = id_prefix + key;
+                if (obj.hasOwnProperty(key))
+                    prev.searchParams.set(history_id, JSON.stringify(obj[key]));
+                else
+                    prev.searchParams.delete(history_id);
+            }
+        });
+    }, [obj, keys.join(',')]);
+
+    return [obj, set_obj];
+};
+
+window.use_custom_table = ({columns, data: _data, total, request_data, visible}) => {
+    const [sort, set_sort] = use_table_history(columns, 's_', visible);
+    const [filter, set_filter] = use_table_history(columns, 'f_', visible);
     const [page, set_page] = useState(0);
     const [page_size, set_page_size] = useState(10);
     const [selected, set_selected] = useState(null);
@@ -64,7 +227,7 @@ window.use_custom_table = ({columns, data: _data, total, request_data}) => {
             set_page_size(_page_size);
         if (_selected)
             set_selected(_selected);
-    }, []);
+    }, [set_filter, set_sort, set_page, set_page_size, set_selected]);
     const [data, set_data] = useState([]);
     const request_client_data = useCallback(() => {
         const sort_by = (l, r) => {
@@ -124,7 +287,7 @@ window.use_custom_table = ({columns, data: _data, total, request_data}) => {
             if (request_data) {
                 try {
                     set_loading(true);
-                    await request_data({filter, sort, page, per_page: page_size});
+                    await request_data({filter, sort, page, page_size});
                 } finally {
                     set_loading(false);
                 }
@@ -149,45 +312,6 @@ window.use_custom_table = ({columns, data: _data, total, request_data}) => {
         total: Number.isInteger(total) || data.length || 0,
     }), [columns, data, sort, set_sort, filter, set_filter, page, page_size, loading, selected, on_update, total]);
 };
-
-/**
- * @returns {[boolean,((function(*): void)|*)]}
- */
-window.use_increment_loading = function () {
-    const [l, set_l] = useState(0);
-    const set_loading = useCallback((is_loading) => {
-        set_l(prev => {
-            return is_loading ? prev + 1 : prev - 1;
-        });
-    }, [set_l]);
-    return useMemo(() => [l > 0, set_loading], [l, set_loading]);
-};
-
-/**
- * @param fn {()=>Promise}
- * @param set_loading {function}
- * @param add_snackbar {function}
- * @param header {string}
- * @param deps {Array}
- * @returns {(function(...[*]): void)|*}
- */
-window.use_async_callback = (fn, {set_loading, add_snackbar, err_hdr}, deps) => {
-    return useCallback((...args) => {
-        async function load() {
-            try {
-                set_loading(true);
-                await fn(...args);
-            } catch (e) {
-                console.error(err_hdr, e);
-                add_snackbar(err_hdr + ' ' + e.message, 'error');
-            } finally {
-                set_loading(false);
-            }
-        }
-
-        load();
-    }, [...deps, add_snackbar, set_loading, err_hdr]);
-}
 
 window.CustomTable = ({columns, data, sort, filter, page, page_size, on_update, loading, total, selected}) => {
     let options = [5, 10, 25, 50, {label: 'All', value: Number.MAX_VALUE}];
@@ -296,16 +420,8 @@ window.CustomTable = ({columns, data, sort, filter, page, page_size, on_update, 
     </TableContainer>
 };
 
-// TODO implement
-window.use_location = function () {
-    const {history, location: {hash, href, assign}} = window;
-    const push = useCallback((str) => {
-        let url = new URL(href);
-
-    }, [href, history]);
-};
-
-window.CustomTabs = function ({tabs, tab_props}) {
+window.CustomTabs = function ({tabs, tab_props, base_url}) {
+    const [url, set_url] = window.use_tab_location(base_url, ['search', 'hash']);
     const [tab, set_tab] = useState(0);
     const _tabs = tabs || [];
     const headers = _tabs.map(x => x.header).map((x, i) => <Tab label={x} value={i} key={i}/>);
@@ -317,8 +433,23 @@ window.CustomTabs = function ({tabs, tab_props}) {
         return x.content(opts);
     });
 
+    useEffect(() => {
+        let find_tab = Math.max(0, tabs.findIndex(x => x.href && url.includes(x.href)));
+        set_tab(find_tab);
+
+        // client navigate
+        if (!url) {
+            let selected_tab = tabs[find_tab];
+            if (selected_tab && selected_tab.href)
+                set_url(selected_tab.href);
+        }
+    }, [url]);
+
     return [
-        <Tabs value={tab} onChange={(e, i) => set_tab(i)}>
+        <Tabs value={tab} onChange={(e, i) => {
+            set_tab(i);
+            set_url(tabs[i].href);
+        }}>
             {headers}
         </Tabs>,
         contents[tab],

@@ -43,24 +43,7 @@ const theme = createTheme({
     },
 });
 
-const useDebounceEffect = (fn, mls, deps) => {
-    let timer_ref = useRef(null);
-    let is_exec_ref = useRef(false);
-    useEffect(() => {
-        if (is_exec_ref.current)
-            return;
-        if (timer_ref.current)
-            clearTimeout(timer_ref.current);
-        timer_ref.current = setTimeout(async function execute() {
-            try {
-                is_exec_ref.current = true;
-                await fn();
-            } finally {
-                is_exec_ref.current = false;
-            }
-        }, mls);
-    }, deps);
-}
+
 
 function AddVacancyModal({close, text, set_text}) {
     const [applied, set_applied] = useState(false);
@@ -126,14 +109,10 @@ function AddVacancyModal({close, text, set_text}) {
     </Card>
 }
 
-window.VacancyView = function MainControl({add_snackbar}) {
-    const Table = window.CustomTable;
+window.VacancyView = function MainControl({add_snackbar, visible}) {
+    const {CustomTable: Table, use_custom_table} = window;
     const [loading, set_loading] = useState(false);
     const [data, set_data] = useState([]);
-    const [sort, set_sort] = useState({});
-    const [filter, set_filter] = useState({});
-    const [page, set_page] = useState(0);
-    const [per_page, set_per_page] = useState(10);
     const [total, set_total] = useState(0);
     const [selected, set_selected] = useState(null);
     const [show_info, set_show_info] = useState(false);
@@ -155,13 +134,13 @@ window.VacancyView = function MainControl({add_snackbar}) {
         return x.applied_time.toLocaleDateString();
     };
 
-    const request_data = useCallback(async () => {
+    const request_data = useCallback(async ({filter, sort, page, page_size}) => {
         try {
             set_loading(true);
             let url = new URL('http://google.com');
 
-            url.searchParams.append('limit', per_page);
-            url.searchParams.append('skip', page * per_page);
+            url.searchParams.append('limit', page_size);
+            url.searchParams.append('skip', page * page_size);
             url.searchParams.append('sort', JSON.stringify(sort));
             url.searchParams.append('find', JSON.stringify(filter));
 
@@ -192,32 +171,7 @@ window.VacancyView = function MainControl({add_snackbar}) {
         } finally {
             set_loading(false);
         }
-    }, [filter, sort, page, per_page]);
-    const on_update = useCallback((opts) => {
-        let {
-            filter: _filter,
-            sort: _sort,
-            page: _page,
-            per_page: _per_page,
-            selected: _selected,
-        } = opts;
-        if (_filter)
-            set_filter(_filter);
-        if (_sort)
-            set_sort(_sort);
-        if (Number.isInteger(_page))
-            set_page(_page);
-        if (Number.isInteger(_per_page))
-            set_per_page(_per_page);
-        if (_selected)
-            set_selected(_selected);
-    }, []);
-    useDebounceEffect(request_data, 400, [request_data]);
-    const table_data = useMemo(() => {
-        if (loading)
-            return [].fill({}, 0, per_page);
-        return data;
-    }, [data, loading, per_page]);
+    }, [set_data, set_total, set_data_status, add_snackbar, set_loading]);
     const cancel_vacancy = useCallback(async (source) => {
         if (!source)
             return void add_snackbar('No selected row', 'warning');
@@ -413,6 +367,14 @@ window.VacancyView = function MainControl({add_snackbar}) {
             },
         ];
     }, [cancel_vacancy, data_status]);
+    const table_props = use_custom_table({
+        columns,
+        data,
+        total,
+        request_data,
+        visible,
+    })
+
 
     return <ThemeProvider theme={theme}>
         <div>
@@ -479,8 +441,7 @@ window.VacancyView = function MainControl({add_snackbar}) {
                     </Button>
                 </Tooltip>
             </Stack>
-            <Table sort={sort} filter={filter} page={page} page_size={per_page} columns={columns} data={table_data}
-                   on_update={on_update} total={total} loading={loading} selected={selected}/>
+            <Table {...table_props}/>
         </div>
     </ThemeProvider>;
 }

@@ -28,7 +28,7 @@ const {
     Tabs,
 } = MaterialUI;
 
-window.ScrapeView = function ({add_snackbar}) {
+window.ScrapeView = function ({add_snackbar, visible}) {
     const {CustomTable: Table, use_custom_table} = window;
     // const [table_data, set_table_data] = useState([]);
     // const [loading, set_loading] = useState(false);
@@ -149,7 +149,7 @@ window.ScrapeView = function ({add_snackbar}) {
             },
         ];
     }, []);
-    const table_props = use_custom_table({columns, data: searches});
+    const table_props = use_custom_table({columns, data: searches, visible});
 
     return <Stack direction='column'>
         <h3>Searches</h3>

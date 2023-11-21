@@ -32,14 +32,38 @@ program
         app.use(express.static(path.resolve('frontend'))); // HTML files
 
         let dir = path.resolve('backend');
-        let backends = fs.readdirSync(dir).filter(x=>x.includes('server') && x.endsWith('.js')).map(x=>path.join(dir, x));
-        let res = await Promise.all(backends.map(x=>import('file://'+x.toString())));
-        res.filter(x=>x.install).map(x=>x.install(app));
+        let backends = fs.readdirSync(dir).filter(x => x.includes('server') && x.endsWith('.js')).map(x => path.join(dir, x));
+        let res = await Promise.all(backends.map(x => import('file://' + x.toString())));
+        res.filter(x => x.install).map(x => x.install(app));
 
         dir = path.resolve('workers');
-        backends = fs.readdirSync(dir).filter(x=>x.includes('worker') && x.endsWith('.js')).map(x=>path.join(dir, x));
-        res = await Promise.all(backends.map(x=>import('file://'+x.toString())));
-        res.filter(x=>x.run).map(x=>x.run());
+        backends = fs.readdirSync(dir).filter(x => x.includes('worker') && x.endsWith('.js')).map(x => path.join(dir, x));
+        res = await Promise.all(backends.map(x => import('file://' + x.toString())));
+        res.filter(x => x.run).map(x => x.run());
+
+        // send index
+        app.get('*', (req, res1) => {
+            let parts = req.url.split('/').filter(Boolean);
+            if (!parts[parts.length-1]?.includes('.'))
+            {
+                const index_path = path.resolve('frontend', 'index.html');
+                return res1.sendFile(index_path);
+            }
+
+            const static_dir = path.resolve('frontend');
+
+            parts = parts.reverse();
+            for (let i = 1; i < parts.length; i++)
+            {
+                let resolved_path = parts.slice(0, i).reverse().join('/');
+                let actual_file = path.resolve(static_dir, resolved_path);
+                if (fs.existsSync(actual_file) && actual_file.includes(static_dir))
+                {
+                    return res1.sendFile(actual_file);
+                }
+            }
+            return res1.status(404);
+        });
 
         let port = 6793;
         app.listen(port, (err) => {

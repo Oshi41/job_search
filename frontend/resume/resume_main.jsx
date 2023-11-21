@@ -38,10 +38,12 @@ window.ResumeMainView = function (opts) {
     const tabs = [
         {
             header: 'Settings',
+            href: '/settings_tab',
             content: ResumeSettingsView,
         },
         {
             header: 'Generate',
+            href: '/generate_tab',
             content: ResumeGenerateView,
         },
     ];
@@ -55,6 +57,9 @@ window.ResumeMainView = function (opts) {
                 marginTop: '10%',
             }}/>
         </Modal>
-        <CustomTabs tab_props={{...opts, set_loading}} tabs={tabs}/>,
+        <CustomTabs tab_props={{...opts, set_loading}}
+                    tabs={tabs}
+                    base_url='/resumes_tab'
+        />,
     </Stack>
 }
